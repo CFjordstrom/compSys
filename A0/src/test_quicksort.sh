@@ -3,7 +3,7 @@
 # Set this variable to the path to rars.jar.  Avoid backslashes.  You
 # can make it "rars.jar" if you always have rars.jar in the current
 # directory.
-RARS_JAR="/set/path/to/rars.jar"
+RARS_JAR="/home/christian/Programs/rars1_5.jar"
 
 export GREEN=$(printf '\033[1;32m')
 export RED=$(printf '\033[1;31m')
