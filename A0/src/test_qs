@@ -12,15 +12,12 @@ array:
         .word 123
         .word 4
         .word 50
-        .word 1000
-        .word 1
-        .word 1451345
 
 .text
 test:
         la a0, array      # address of array
         addi a1, zero, 0  # start element
-        addi a2, zero, 11  # number of elements
+        addi a2, zero, 8  # number of elements
         jal ra, quicksort # call quicksort
         jal zero, end     # jump to end
 
