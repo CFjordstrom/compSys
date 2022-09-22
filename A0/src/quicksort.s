@@ -6,8 +6,7 @@ quicksort:
         # a1 stores start
         # a2 stores end
 
-        # ADD CODE HERE
-        addi sp, sp, -20		# allocate 6 words on stack
+        addi sp, sp, -20		# allocate 5 words on stack
         mv t1, a2			# move end to t1
  	sw ra, 16(sp)			# store ra
  	sw a0, 12(sp)			# store array
