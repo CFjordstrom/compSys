@@ -6,12 +6,6 @@ quicksort:
         # a1 stores start
         # a2 stores end
 
-	# ra = 16
-	# a0 = 12
-	# a1 = 8
-	# t1 = 4
-	# t4 = 0
-
         # ADD CODE HERE
         addi sp, sp, -20		# allocate 6 words on stack
         mv t1, a2			# move end to t1
@@ -34,12 +28,10 @@ quicksort:
  	sw t1, 4(sp)			# store end
  	sw t4, 0(sp)			# store q
  	jal ra, quicksort		# call quicksort(array, start, q)
- 	lw t4, 0(sp)			# pop q
- 	lw t1, 4(sp)			# pop end
+ 	lw a1, 0(sp)			# a1 = q
+ 	lw a2, 4(sp)			# a2 = end
  	lw a0, 12(sp)			# pop array
  	lw ra, 16(sp)			# pop ra
- 	mv a1, t4			# a1 = q
- 	mv a2, t1			# a2 = end
  	jal ra, quicksort		# quicksort(array, q, end)
  	
  return:
