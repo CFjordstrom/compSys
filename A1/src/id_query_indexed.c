@@ -20,20 +20,19 @@ struct indexed_data {
 };
 
 struct indexed_data* mk_indexed(struct record* rs, int n) {
-  struct indexed_data* indexed_data = malloc(n * sizeof(struct index_record*) + sizeof(int));
+  struct indexed_data* indexed_data = malloc(sizeof(struct indexed_data*));
+  indexed_data->irs = malloc(n * sizeof(struct index_record));
   indexed_data->n = n;
   for (int i = 0; i < n; i++) {
-    struct index_record* ir = malloc(sizeof(struct index_record*));
-    ir->osm_id = rs[i].osm_id;
-    ir->record = &rs[i];
-    indexed_data->irs[i] = ir;
+    indexed_data->irs[i].record = &rs[i];
+    indexed_data->irs[i].osm_id = rs[i].osm_id;
   }
   return indexed_data;
 }
 
 void free_indexed(struct indexed_data* data) {
   for(int i = 0; i < data->n; i++) {
-    free(&data->irs[i]);
+    free(data->irs);
   }
   free(data);
 }
