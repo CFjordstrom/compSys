@@ -34,7 +34,6 @@ void free_naive(struct naive_data* data) {
 const struct record* lookup_naive(struct naive_data *data, double lon, double lat) {
   struct record* closest_record;
   double closest = DBL_MAX;
-  
   for(int i = 0; i < data->n; i++) {
     double current = euc_dist(data->rs[i].lon, data->rs[i].lat, lon, lat);
     if (current < closest) {
@@ -42,7 +41,6 @@ const struct record* lookup_naive(struct naive_data *data, double lon, double la
       closest = current;
     } 
   }
-  
   return closest_record;
 }
 
