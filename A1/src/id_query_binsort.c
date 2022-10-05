@@ -17,7 +17,15 @@ struct sort_data {
 int cmpfunc (const void* a, const void* b) {
   const struct record* r1 = (struct record*)a;
   const struct record* r2 = (struct record*)b;
-  return (r1->osm_id > r2->osm_id);
+  if (r1->osm_id > r2->osm_id) {
+    return 1;
+  }
+  else if (r1->osm_id < r2->osm_id) {
+    return -1;
+  }
+  else {
+    return 0;
+  }
 }
 
 const struct record* binary_search(struct record* rs, int64_t needle, int low, int high) {
