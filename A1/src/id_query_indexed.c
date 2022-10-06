@@ -20,7 +20,7 @@ struct indexed_data {
 };
 
 struct indexed_data* mk_indexed(struct record* rs, int n) {
-  struct indexed_data* indexed_data = malloc(sizeof(struct indexed_data*));
+  struct indexed_data* indexed_data = malloc(sizeof(struct indexed_data));
   indexed_data->irs = malloc(n * sizeof(struct index_record));
   indexed_data->n = n;
   for (int i = 0; i < n; i++) {
