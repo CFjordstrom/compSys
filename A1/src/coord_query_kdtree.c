@@ -11,27 +11,27 @@
 #include "record.h"
 #include "coord_query.h"
 
-#define k 2;
-
-struct point {
-  double lon;
-  double lat;
-};
+#define k 2
 
 struct node {
-  struct point* point;
   int axis;
   struct node* left;
   struct node* right;
+  struct record* r;
+  double point[k];
 };
 
 struct kdtree {
   struct node* root;
 };
 
+double euc_dist(double x1, double y1, double x2, double y2) {
+  return sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
+}
+
 int cmpfunc_lon(const void* a, const void* b) {
-  const struct point* p1 = (struct point*)a;
-  const struct point* p2 = (struct point*)b;
+  const struct record* p1 = (struct record*)a;
+  const struct record* p2 = (struct record*)b;
 
   if (p1->lon > p2->lon) {
     return 1;
@@ -45,8 +45,8 @@ int cmpfunc_lon(const void* a, const void* b) {
 }
 
 int cmpfunc_lat(const void* a, const void* b) {
-  const struct point* p1 = (struct point*)a;
-  const struct point* p2 = (struct point*)b;
+  const struct record* p1 = (struct record*)a;
+  const struct record* p2 = (struct record*)b;
   if (p1->lat > p2->lat) {
     return 1;
   }
@@ -58,43 +58,39 @@ int cmpfunc_lat(const void* a, const void* b) {
   }
 }
 
-struct point* mk_points(struct record* rs, int n) {
-  struct point* points = malloc(sizeof(struct point) * n);
-  for (int i = 0; i < n; i++) {
-    points[i].lon = rs[i].lon;
-    points[i].lat = rs[i].lat;
-  }
-  return points;
-}
-
-struct point* find_median(struct point* points, int axis, int n) {
+struct record* find_median(struct record* rs, int axis, int n) {
   if (axis == 0) {
-    qsort(points, n, sizeof(struct point), cmpfunc_lon);
+    qsort(rs, n, sizeof(struct record), cmpfunc_lon);
   }
   else {
-    qsort(points, n, sizeof(struct point), cmpfunc_lat);
+    qsort(rs, n, sizeof(struct record), cmpfunc_lat);
   }
-    return &points[n/2+1];
+    return &rs[n/2+1];
   }
 
-struct node* insert_rec(struct point* points, int depth, int n) {
+struct node* insert_rec(struct record* rs, int depth, int n) {
   int axis = depth % k;
-  struct point* median = find_median(points, axis, n);
+  struct record* median = find_median(rs, axis, n);
+  if (depth == 0) {
+    printf("root_id: %ld\n", median->osm_id);
+  }
   struct node* node = malloc(sizeof(struct node));
-  node->point = median;
+  node->point[0] = median->lon;
+  node->point[1] = median->lat;
   node->axis = axis;
+  node->r = median;
   if (n == 1) {
     return node;
   }
-  node->left = insert_rec(points, depth + 1, n/2);
-  node->right = insert_rec(&points[n/2+2], depth + 1, n/2);
+  node->left = insert_rec(rs, depth + 1, n/2);
+  node->right = insert_rec(&rs[n/2+2], depth + 1, n/2);
   return node;
 }
 
 struct kdtree* mk_kdtree(struct record* rs, int n) {
   struct kdtree* kdtree = malloc(sizeof kdtree);
-  struct point* points = mk_points(rs, n);
-  kdtree->root = insert_rec(points, 0, n);
+  kdtree->root = insert_rec(rs, 0, n);
+  printf("root_id_mk: %ld\n", kdtree->root->r->osm_id);
   return kdtree;
 }
 
@@ -102,10 +98,39 @@ void free_kdtree(struct kdtree* data) {
   free(data);
 }
 
-
+void lookup_rec(struct node* closest, struct record* query, struct node* node) {
+  double current_dist = euc_dist(node->point[0], node->point[1], query->lon, query->lat);
+  double closest_dist = euc_dist(closest->point[0], closest->point[1], query->lon, query->lat);
+  if (node == NULL) {
+    return;
+  } else if (current_dist < closest_dist) {
+    closest = node;
+  }
+  double diff;
+  if (node->axis == 0) {
+    diff = node->point[node->axis] - query->lon;
+  } else {
+    diff = node->point[node->axis] - query->lat;
+  }
+  double radius = euc_dist(query->lon, query->lat, closest->point[0], closest->point[1]);
+  if ((diff >= 0) | (radius > fabs(diff))) {
+    lookup_rec(closest, query, node->left);
+  }
+  if ((diff >= 0) | (radius > fabs(diff))) {
+    lookup_rec(closest, query, node->right);
+  }
+  printf("done\n");
+}
 
 const struct record* lookup_kdtree(struct kdtree *data, double lon, double lat) {
-  
+  struct record* query = malloc(sizeof(struct record));
+  query->lon = lon;
+  query->lat = lat;
+  struct node* closest = malloc(sizeof(struct node));
+  closest->point[0] = DBL_MAX;
+  closest->point[1] = DBL_MAX;
+  lookup_rec(closest, query, data->root);
+  return closest->r;
 }
 
 int main(int argc, char** argv) {
