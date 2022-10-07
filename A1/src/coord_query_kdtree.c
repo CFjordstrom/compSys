@@ -69,19 +69,16 @@ struct record* find_median(struct record* rs, int axis, int n) {
   }
 
 struct node* insert_rec(struct record* rs, int depth, int n) {
+  if (n == 0) {
+    return NULL;
+  }
   int axis = depth % k;
   struct record* median = find_median(rs, axis, n);
-  if (depth == 0) {
-    printf("root_id: %ld\n", median->osm_id);
-  }
   struct node* node = malloc(sizeof(struct node));
   node->point[0] = median->lon;
   node->point[1] = median->lat;
   node->axis = axis;
   node->r = median;
-  if (n == 1) {
-    return node;
-  }
   node->left = insert_rec(rs, depth + 1, n/2);
   node->right = insert_rec(&rs[n/2+2], depth + 1, n/2);
   return node;
@@ -90,7 +87,6 @@ struct node* insert_rec(struct record* rs, int depth, int n) {
 struct kdtree* mk_kdtree(struct record* rs, int n) {
   struct kdtree* kdtree = malloc(sizeof kdtree);
   kdtree->root = insert_rec(rs, 0, n);
-  printf("root_id_mk: %ld\n", kdtree->root->r->osm_id);
   return kdtree;
 }
 
@@ -119,7 +115,6 @@ void lookup_rec(struct node* closest, struct record* query, struct node* node) {
   if ((diff >= 0) | (radius > fabs(diff))) {
     lookup_rec(closest, query, node->right);
   }
-  printf("done\n");
 }
 
 const struct record* lookup_kdtree(struct kdtree *data, double lon, double lat) {
