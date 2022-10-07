@@ -65,7 +65,7 @@ struct record* find_median(struct record* rs, int axis, int n) {
   else {
     qsort(rs, n, sizeof(struct record), cmpfunc_lat);
   }
-    return &rs[n/2+1];
+    return &rs[n/2];
   }
 
 struct node* insert_rec(struct record* rs, int depth, int n) {
@@ -79,8 +79,8 @@ struct node* insert_rec(struct record* rs, int depth, int n) {
   node->point[1] = median->lat;
   node->axis = axis;
   node->r = median;
-  node->left = insert_rec(rs, depth + 1, n/2);
-  node->right = insert_rec(&rs[n/2+2], depth + 1, n/2);
+  node->left = insert_rec(rs, depth+1, n/2);
+  node->right = insert_rec(&rs[n/2+1], depth+1, n-n/2-1);
   return node;
 }
 
@@ -90,17 +90,32 @@ struct kdtree* mk_kdtree(struct record* rs, int n) {
   return kdtree;
 }
 
+void free_rec(struct node* node) {
+  if (node == NULL) {
+    return;
+  }
+  free_rec(node->left);
+  free_rec(node->right);
+  free(node);
+}
+
 void free_kdtree(struct kdtree* data) {
+  free_rec(data->root);
   free(data);
 }
 
 void lookup_rec(struct node* closest, struct record* query, struct node* node) {
-  double current_dist = euc_dist(node->point[0], node->point[1], query->lon, query->lat);
-  double closest_dist = euc_dist(closest->point[0], closest->point[1], query->lon, query->lat);
   if (node == NULL) {
     return;
-  } else if (current_dist < closest_dist) {
-    closest = node;
+  }
+  double current_dist = euc_dist(node->point[0], node->point[1], query->lon, query->lat);
+  double closest_dist = euc_dist(closest->point[0], closest->point[1], query->lon, query->lat);
+  printf("current dist: %f, closest dist: %f\n", current_dist, closest_dist);
+  
+  if  (current_dist < closest_dist) {
+    closest->r = node->r;
+    closest->point[0] = node->point [0];
+    closest->point[1] = node->point[1];
   }
   double diff;
   if (node->axis == 0) {
@@ -125,6 +140,7 @@ const struct record* lookup_kdtree(struct kdtree *data, double lon, double lat) 
   closest->point[0] = DBL_MAX;
   closest->point[1] = DBL_MAX;
   lookup_rec(closest, query, data->root);
+  printf("lon: %f, lat: %f\n", closest->point[0], closest->point[1]);
   return closest->r;
 }
 
