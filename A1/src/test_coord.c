@@ -9,6 +9,7 @@
 #include <float.h>
 
 #include "record.h"
+#include "record.c"
 #include "coord_query.h"
 
 #define k 2
