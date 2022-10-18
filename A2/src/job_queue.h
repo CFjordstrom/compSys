@@ -4,8 +4,8 @@
 #include <pthread.h>
 
 struct job_queue {
-  int front;
-  int back;
+  int enqueue;
+  int dequeue;
   int capacity;
   int destroyed;
   int n_elms;
