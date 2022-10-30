@@ -125,13 +125,14 @@ int main(int argc, char * const *argv) {
     err(1, "fts_open() failed");
     return -1;
   }
-
+  int n_files = 0;
   FTSENT *p;
   while ((p = fts_read(ftsp)) != NULL) {
     switch (p->fts_info) {
     case FTS_D:
       break;
     case FTS_F:
+      n_files++;
       job_queue_push(&jq, strdup(p->fts_path));
       break;
     default:
@@ -148,6 +149,6 @@ int main(int argc, char * const *argv) {
     }
   }
   free(threads);
-
+  printf("\nNumber of files: %i\n", n_files);
   return 0;
 }
