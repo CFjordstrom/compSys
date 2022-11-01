@@ -83,10 +83,10 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 
     memcpy(to_hash, strcat(password, salt), len);
     get_data_sha(to_hash, *hash, len, SHA256_HASH_SIZE);
-    
-    for (int i = 0; i < len; i++) {
-        printf("xd\n");
+    for (uint8_t i = 0; i < strlen(to_hash); i++) {
+        printf("[%c]", to_hash[i]);
     }
+    printf("\n");
 }
 
 /*
@@ -95,8 +95,12 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
  */
 void register_user(char* username, char* password, char* salt)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    hashdata_t hash;
+    get_signature(password, salt, &hash);
+    char to_send[52];
+    strncpy(to_send, username, 16);
+    strncpy(&to_send[16], hash, 32);
+    strncpy(&to_send[48], "", 4);
 }
 
 /*
@@ -104,11 +108,11 @@ void register_user(char* username, char* password, char* salt)
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-void get_file(char* username, char* password, char* salt, char* to_get)
+/*void get_file(char* username, char* password, char* salt, char* to_get)
 {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
-}
+}*/
 
 int main(int argc, char **argv)
 {
@@ -205,10 +209,10 @@ int main(int argc, char **argv)
     register_user(username, password, user_salt);
 
     // Retrieve the smaller file, that doesn't not require support for blocks
-    get_file(username, password, user_salt, "tiny.txt");
+    /*get_file(username, password, user_salt, "tiny.txt");
 
     // Retrieve the larger file, that requires support for blocked messages
-    get_file(username, password, user_salt, "hamlet.txt");
+    get_file(username, password, user_salt, "hamlet.txt");*/
 
     exit(EXIT_SUCCESS);
 }
