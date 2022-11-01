@@ -83,10 +83,6 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 
     memcpy(to_hash, strcat(password, salt), len);
     get_data_sha(to_hash, *hash, len, SHA256_HASH_SIZE);
-    for (uint8_t i = 0; i < strlen(to_hash); i++) {
-        printf("[%c]", to_hash[i]);
-    }
-    printf("\n");
 }
 
 /*
@@ -97,10 +93,21 @@ void register_user(char* username, char* password, char* salt)
 {
     hashdata_t hash;
     get_signature(password, salt, &hash);
-    char to_send[52];
-    strncpy(to_send, username, 16);
-    strncpy(&to_send[16], hash, 32);
-    strncpy(&to_send[48], "", 4);
+
+    char to_send[REQUEST_HEADER_LEN];
+    strncpy(to_send, username, USERNAME_LEN);
+    memcpy(&to_send[USERNAME_LEN], &hash, SHA256_HASH_SIZE);
+    strncpy(&to_send[USERNAME_LEN+SHA256_HASH_SIZE], "", 4);
+    
+    rio_t rio;
+    int client_socket = Open_clientfd(my_ip, my_port);
+    Rio_readinitb(&rio, client_socket);
+    char buf[RESPONSE_HEADER_LEN];
+
+    Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
+    Rio_readnb(&rio, buf, RESPONSE_HEADER_LEN);
+    printf("Received reply:\n");
+    Fputs(buf, stdout);
 }
 
 /*
@@ -122,7 +129,7 @@ int main(int argc, char **argv)
     {
         fprintf(stderr, "Usage: %s <config file>\n", argv[0]);
         exit(EXIT_FAILURE);
-    } 
+    }
 
     // Read in configuration options. Should include a client_directory, 
     // client_ip, client_port, server_ip, and server_port
