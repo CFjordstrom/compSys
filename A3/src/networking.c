@@ -83,6 +83,10 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 
     memcpy(to_hash, strcat(password, salt), len);
     get_data_sha(to_hash, *hash, len, SHA256_HASH_SIZE);
+    
+    for (int i = 0; i < len; i++) {
+        printf("xd\n");
+    }
 }
 
 /*
