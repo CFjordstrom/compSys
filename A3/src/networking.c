@@ -105,9 +105,13 @@ void register_user(char* username, char* password, char* salt)
     char buf[RESPONSE_HEADER_LEN];
 
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
-    Rio_readnb(&rio, buf, RESPONSE_HEADER_LEN);
+    Rio_readlineb(&rio, buf, RESPONSE_HEADER_LEN);
     printf("Received reply:\n");
     Fputs(buf, stdout);
+    Rio_readlineb(&rio, buf, RESPONSE_HEADER_LEN);
+    printf("Received reply:\n");
+    Fputs(buf, stdout);
+    printf("\n");
 }
 
 /*
