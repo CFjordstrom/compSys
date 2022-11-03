@@ -80,8 +80,9 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
 {
     int len = strlen(password) + strlen(salt);
     char to_hash[len];
+    strncpy(to_hash, password, strlen(password));
+    strncpy(&to_hash[strlen(password)], salt, strlen(salt));
 
-    memcpy(to_hash, strcat(password, salt), len);
     get_data_sha(to_hash, *hash, len, SHA256_HASH_SIZE);
 }
 
@@ -102,15 +103,19 @@ void register_user(char* username, char* password, char* salt)
     rio_t rio;
     int client_socket = Open_clientfd(my_ip, my_port);
     Rio_readinitb(&rio, client_socket);
-    char buf[RESPONSE_HEADER_LEN];
+    char response_header[RESPONSE_HEADER_LEN];
+    char response_body[MAX_PAYLOAD];
 
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
-    Rio_readlineb(&rio, buf, RESPONSE_HEADER_LEN);
-    printf("Received reply:\n");
-    Fputs(buf, stdout);
-    Rio_readlineb(&rio, buf, RESPONSE_HEADER_LEN);
-    printf("Received reply:\n");
-    Fputs(buf, stdout);
+    
+    Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
+    printf("Register: \n");
+    printf("Response header:\n");
+    Fputs(response_header, stdout);
+    
+    Rio_readnb(&rio, response_body, MAX_PAYLOAD);
+    printf("Response body:\n");
+    Fputs(response_body, stdout);
     printf("\n");
 }
 
@@ -119,11 +124,38 @@ void register_user(char* username, char* password, char* salt)
  * a file path. Note that this function should be able to deal with both small 
  * and large files. 
  */
-/*void get_file(char* username, char* password, char* salt, char* to_get)
+void get_file(char* username, char* password, char* salt, char* to_get)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
-}*/
+    hashdata_t hash;
+    get_signature(password, salt, &hash);
+    int path_len = strlen(to_get);
+    int n_path_len = htonl(path_len);
+
+    char request_header[REQUEST_HEADER_LEN+path_len];
+    strncpy(request_header, username, USERNAME_LEN);
+    memcpy(&request_header[USERNAME_LEN], &hash, SHA256_HASH_SIZE);
+    memcpy(&request_header[USERNAME_LEN+SHA256_HASH_SIZE], &n_path_len, 4);
+    strncpy(&request_header[REQUEST_HEADER_LEN], to_get, path_len);
+
+    rio_t rio;
+    int client_socket = Open_clientfd(my_ip, my_port);
+    Rio_readinitb(&rio, client_socket);
+    char response_header[RESPONSE_HEADER_LEN];
+    char response_body[MAX_PAYLOAD];
+    
+    Rio_writen(client_socket, request_header, REQUEST_HEADER_LEN+path_len);
+
+    Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
+    printf("\nRequest small file: \n");
+    printf("Response header:\n");
+    Fputs(response_header, stdout);
+
+    while(Rio_readnb(&rio, response_body, MAX_PAYLOAD) != 0) {
+        printf("Response body:\n");
+        Fputs(response_body, stdout);
+        printf("\n");
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -220,10 +252,10 @@ int main(int argc, char **argv)
     register_user(username, password, user_salt);
 
     // Retrieve the smaller file, that doesn't not require support for blocks
-    /*get_file(username, password, user_salt, "tiny.txt");
+    get_file(username, password, user_salt, "tiny.txt");
 
     // Retrieve the larger file, that requires support for blocked messages
-    get_file(username, password, user_salt, "hamlet.txt");*/
+    //get_file(username, password, user_salt, "hamlet.txt");
 
     exit(EXIT_SUCCESS);
 }
