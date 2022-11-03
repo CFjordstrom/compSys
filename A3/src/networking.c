@@ -21,6 +21,15 @@ char my_port[PORT_LEN];
 
 int c;
 
+struct response {
+    int len;
+    uint32_t s_code;
+    int b_num;
+    int b_count;
+    hashdata_t* b_hash;
+    hashdata_t* t_hash;
+};
+
 /*
  * Gets a sha256 hash of specified data, sourcedata. The hash itself is
  * placed into the given variable 'hash'. Any size can be created, but a
@@ -70,6 +79,15 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size)
     get_data_sha(buffer, hash, casc_file_size, size);
 }
 
+void parse_response(char* response_header, struct response* response) {
+    char len[4];
+    memcpy(len, response_header, 4);
+
+    for (int i = 0; i < 4; i++) {
+        printf("[%c]", len[i]);
+    }
+    printf("\n");
+}
 /*
  * Combine a password and salt together and hash the result to form the 
  * 'signature'. The result should be written to the 'hash' variable. Note that 
@@ -107,16 +125,8 @@ void register_user(char* username, char* password, char* salt)
     char response_body[MAX_PAYLOAD];
 
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
-    
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
-    printf("Register: \n");
-    printf("Response header:\n");
-    Fputs(response_header, stdout);
-    
     Rio_readnb(&rio, response_body, MAX_PAYLOAD);
-    printf("Response body:\n");
-    Fputs(response_body, stdout);
-    printf("\n");
 }
 
 /*
@@ -142,19 +152,17 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     Rio_readinitb(&rio, client_socket);
     char response_header[RESPONSE_HEADER_LEN];
     char response_body[MAX_PAYLOAD];
+    struct response* response = malloc(sizeof(struct response));
     
     Rio_writen(client_socket, request_header, REQUEST_HEADER_LEN+path_len);
-
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
-    printf("\nRequest small file: \n");
-    printf("Response header:\n");
-    Fputs(response_header, stdout);
+    parse_response(response_header, response);
+    //printf("xd = %i\n", *response->len);
+    Rio_readnb(&rio, response_body, MAX_PAYLOAD);
 
-    while(Rio_readnb(&rio, response_body, MAX_PAYLOAD) != 0) {
-        printf("Response body:\n");
-        Fputs(response_body, stdout);
-        printf("\n");
-    }
+    FILE* fp = Fopen(to_get, "w");
+    Fwrite(response_body, 1, strlen(response_body), fp);
+    free(response);
 }
 
 int main(int argc, char **argv)
