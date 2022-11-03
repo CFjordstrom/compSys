@@ -23,11 +23,11 @@ int c;
 
 struct response {
     int len;
-    uint32_t s_code;
+    int s_code;
     int b_num;
     int b_count;
-    hashdata_t* b_hash;
-    hashdata_t* t_hash;
+    hashdata_t b_hash;
+    hashdata_t t_hash;
 };
 
 /*
@@ -79,15 +79,14 @@ void get_file_sha(const char* sourcefile, hashdata_t hash, int size)
     get_data_sha(buffer, hash, casc_file_size, size);
 }
 
-void parse_response(char* response_header, struct response* response) {
-    char len[4];
-    memcpy(len, response_header, 4);
-
-    for (int i = 0; i < 4; i++) {
-        printf("[%c]", len[i]);
-    }
-    printf("\n");
+int parse_section(char* response_header, int index) {
+    char s[4];
+    memcpy(s, &response_header[index], 4);
+    int* p = (int*)s;
+    int r = *p;
+    return ntohl(r);
 }
+
 /*
  * Combine a password and salt together and hash the result to form the 
  * 'signature'. The result should be written to the 'hash' variable. Note that 
@@ -127,6 +126,8 @@ void register_user(char* username, char* password, char* salt)
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
     Rio_readnb(&rio, response_body, MAX_PAYLOAD);
+    Fputs(response_body, stdout);
+    printf("\n");
 }
 
 /*
@@ -150,19 +151,27 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     rio_t rio;
     int client_socket = Open_clientfd(my_ip, my_port);
     Rio_readinitb(&rio, client_socket);
+
     char response_header[RESPONSE_HEADER_LEN];
-    char response_body[MAX_PAYLOAD];
-    struct response* response = malloc(sizeof(struct response));
+    struct response* response = Malloc(sizeof(struct response));
     
     Rio_writen(client_socket, request_header, REQUEST_HEADER_LEN+path_len);
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
-    parse_response(response_header, response);
-    //printf("xd = %i\n", *response->len);
-    Rio_readnb(&rio, response_body, MAX_PAYLOAD);
 
+    response->len = parse_section(response_header, 0);
+    response->s_code = parse_section(response_header, 4);
+    response->b_num = parse_section(response_header, 8);
+    response->b_count = parse_section(response_header, 12);
+
+    memcpy(&response->b_hash, &response_header[16], SHA256_HASH_SIZE);
+    memcpy(&response->t_hash, &response_header[16+SHA256_HASH_SIZE], SHA256_HASH_SIZE);
+    
+    char response_body[response->len];
+    Rio_readnb(&rio, response_body, response->len);
     FILE* fp = Fopen(to_get, "w");
     Fwrite(response_body, 1, strlen(response_body), fp);
-    free(response);
+    printf("Retrieved data written to %s\n", to_get);
+    Fclose(fp);
 }
 
 int main(int argc, char **argv)
