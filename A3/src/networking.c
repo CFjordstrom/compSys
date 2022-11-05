@@ -21,15 +21,6 @@ char my_port[PORT_LEN];
 
 int c;
 
-struct response {
-    int len;
-    int s_code;
-    int b_num;
-    int b_count;
-    hashdata_t b_hash;
-    hashdata_t t_hash;
-};
-
 /*
  * Gets a sha256 hash of specified data, sourcedata. The hash itself is
  * placed into the given variable 'hash'. Any size can be created, but a
@@ -95,8 +86,10 @@ int parse_section(char* response_header, int index) {
  */
 void get_signature(char* password, char* salt, hashdata_t* hash)
 {
+    // calculate length of pw and salt, create string to hold concatenation of them
     int len = strlen(password) + strlen(salt);
     char to_hash[len];
+    // copy password and hash to string
     strncpy(to_hash, password, strlen(password));
     strncpy(&to_hash[strlen(password)], salt, strlen(salt));
 
@@ -109,20 +102,26 @@ void get_signature(char* password, char* salt, hashdata_t* hash)
  */
 void register_user(char* username, char* password, char* salt)
 {
+    // hash password and salt
     hashdata_t hash;
     get_signature(password, salt, &hash);
 
+    // assemble request header
     char to_send[REQUEST_HEADER_LEN];
     strncpy(to_send, username, USERNAME_LEN);
     memcpy(&to_send[USERNAME_LEN], &hash, SHA256_HASH_SIZE);
     strncpy(&to_send[USERNAME_LEN+SHA256_HASH_SIZE], "", 4);
     
+    // open connection
     rio_t rio;
     int client_socket = Open_clientfd(my_ip, my_port);
     Rio_readinitb(&rio, client_socket);
+
+    // create response buffers
     char response_header[RESPONSE_HEADER_LEN];
     char response_body[MAX_PAYLOAD];
 
+    // send request and read response
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
     Rio_readnb(&rio, response_body, MAX_PAYLOAD);
@@ -137,39 +136,143 @@ void register_user(char* username, char* password, char* salt)
  */
 void get_file(char* username, char* password, char* salt, char* to_get)
 {
+    // hash password and salt
     hashdata_t hash;
     get_signature(password, salt, &hash);
+
+    // length of filepath in host and network byte order
     int path_len = strlen(to_get);
     int n_path_len = htonl(path_len);
 
+    // assemble request header
     char request_header[REQUEST_HEADER_LEN+path_len];
     strncpy(request_header, username, USERNAME_LEN);
     memcpy(&request_header[USERNAME_LEN], &hash, SHA256_HASH_SIZE);
     memcpy(&request_header[USERNAME_LEN+SHA256_HASH_SIZE], &n_path_len, 4);
     strncpy(&request_header[REQUEST_HEADER_LEN], to_get, path_len);
 
+    // open connection
     rio_t rio;
     int client_socket = Open_clientfd(my_ip, my_port);
     Rio_readinitb(&rio, client_socket);
-
     char response_header[RESPONSE_HEADER_LEN];
-    struct response* response = Malloc(sizeof(struct response));
     
+    // send request and read response header
     Rio_writen(client_socket, request_header, REQUEST_HEADER_LEN+path_len);
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
 
-    response->len = parse_section(response_header, 0);
-    response->s_code = parse_section(response_header, 4);
-    response->b_num = parse_section(response_header, 8);
-    response->b_count = parse_section(response_header, 12);
+    // parse first 16 bytes from response header
+    int len = parse_section(response_header, 0);
+    int status = parse_section(response_header, 4);
+    int block_num = parse_section(response_header, 8);
+    int num_blocks = parse_section(response_header, 12);
 
-    memcpy(&response->b_hash, &response_header[16], SHA256_HASH_SIZE);
-    memcpy(&response->t_hash, &response_header[16+SHA256_HASH_SIZE], SHA256_HASH_SIZE);
-    
-    char response_body[response->len];
-    Rio_readnb(&rio, response_body, response->len);
+    // parse next 64 bytes from response header
+    hashdata_t block_checksum;
+    memcpy(&block_checksum, &response_header[16], SHA256_HASH_SIZE);
+    hashdata_t total_checksum;
+    memcpy(&total_checksum, &response_header[16+SHA256_HASH_SIZE], SHA256_HASH_SIZE);
+
+    // read first response into response_body
+    char response_body[len];
+    Rio_readnb(&rio, response_body, len);
+    printf("Block %i (%i/%i)\n", block_num, 1, num_blocks);
+
+    // if status != ok exit
+    if (status != 1) {
+        printf("Got unexpected status code: %i\n", status);
+        return;
+    }
+
+    // if hash of body does not match hash in header exit
+    hashdata_t response_hash;
+    get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
+    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+        if (response_hash[i] != block_checksum[i]) {
+            printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
+            return;
+        }
+    }
+
+    // if amount of blocks to be read is 0, check if total hash matches,
+    // if it does, write response to a file and stop
+    if (num_blocks == 1) {
+        hashdata_t total_hash;
+        get_data_sha(response_body, total_hash, len, SHA256_HASH_SIZE);
+        for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+            if (total_hash[i] != total_checksum[i]) {
+                printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
+                return;
+            }
+        }
+        FILE* fp = Fopen(to_get, "w");
+        Fwrite(response_body, 1, strlen(response_body), fp);
+        printf("Retrieved data written to %s\n", to_get);
+        Fclose(fp);
+        return;
+    }
+
+    // there are more than one block, create array of strings to hold result from
+    // all blocks, and copy first block into the array
+    int blocks_read = 1;
+    char all_blocks[num_blocks][MAX_PAYLOAD];
+    int reading = 1;
+    memcpy(all_blocks, response_body, len);
+
+    while(reading) {
+        // read header for new response, parse it like before and check codes etc.
+        Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
+
+        int len = parse_section(response_header, 0);
+        int status = parse_section(response_header, 4);
+        int block_num = parse_section(response_header, 8);
+        int num_blocks = parse_section(response_header, 12);
+
+        hashdata_t block_checksum;
+        memcpy(&block_checksum, &response_header[16], SHA256_HASH_SIZE);
+        hashdata_t total_checksum;
+        memcpy(&total_checksum, &response_header[16+SHA256_HASH_SIZE], SHA256_HASH_SIZE);
+
+        char response_body[len];
+        Rio_readnb(&rio, response_body, len);
+        blocks_read++;
+        printf("Block %i (%i/%i)\n", block_num, blocks_read, num_blocks);
+
+        if (status != 1) {
+            printf("Got unexpected status code: %i\n", status);
+            return;
+        }
+
+        hashdata_t response_hash;
+        get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
+        for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+            if (response_hash[i] != block_checksum[i]) {
+                printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
+                return;
+            }
+        }
+
+        // copy response into array holding all blocks
+        memcpy(all_blocks[blocks_read-1], response_body, len);
+        // if amount of blocks read = amount of blocks to be read, stop reading
+        if (blocks_read == num_blocks) {
+            reading = 0;
+        }
+    }
+
+    // check if hash of all blocks matches total hash from header
+    hashdata_t total_hash;
+    get_data_sha(all_blocks[0], total_hash, strlen(all_blocks[0]), SHA256_HASH_SIZE);
+    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+        if (total_hash[i] != total_checksum[i]) {
+            printf("Checksum for all blocks does not match\n");
+            return;
+        }
+    }
+
+    // data is correct, so write it to file
     FILE* fp = Fopen(to_get, "w");
-    Fwrite(response_body, 1, strlen(response_body), fp);
+    Fwrite(all_blocks[0], 1, strlen(all_blocks[0]), fp);
     printf("Retrieved data written to %s\n", to_get);
     Fclose(fp);
 }
@@ -272,7 +375,7 @@ int main(int argc, char **argv)
     get_file(username, password, user_salt, "tiny.txt");
 
     // Retrieve the larger file, that requires support for blocked messages
-    //get_file(username, password, user_salt, "hamlet.txt");
+    get_file(username, password, user_salt, "hamlet.txt");
 
     exit(EXIT_SUCCESS);
 }
