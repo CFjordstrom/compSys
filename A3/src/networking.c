@@ -217,7 +217,7 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     int blocks_read = 1;
     char all_blocks[num_blocks][MAX_PAYLOAD];
     int reading = 1;
-    memcpy(all_blocks, response_body, len);
+    memcpy(all_blocks[block_num], response_body, len);
 
     while(reading) {
         // read header for new response, parse it like before and check codes etc.
@@ -251,9 +251,8 @@ void get_file(char* username, char* password, char* salt, char* to_get)
                 return;
             }
         }
-
         // copy response into array holding all blocks
-        memcpy(all_blocks[blocks_read-1], response_body, len);
+        memcpy(all_blocks[block_num], response_body, len);
         // if amount of blocks read = amount of blocks to be read, stop reading
         if (blocks_read == num_blocks) {
             reading = 0;
