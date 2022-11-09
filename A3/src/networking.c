@@ -125,6 +125,39 @@ void register_user(char* username, char* password, char* salt)
     Rio_writen(client_socket, to_send, REQUEST_HEADER_LEN);
     Rio_readnb(&rio, response_header, RESPONSE_HEADER_LEN);
     Rio_readnb(&rio, response_body, MAX_PAYLOAD);
+
+    // parse response
+    int len = parse_section(response_header, 0);
+    int status = parse_section(response_header, 4);
+    hashdata_t registration_checksum;
+    memcpy(&registration_checksum, &response_header[16], SHA256_HASH_SIZE);
+    hashdata_t total_registration_checksum;
+    memcpy(&total_registration_checksum, &response_header[16+SHA256_HASH_SIZE], SHA256_HASH_SIZE);
+
+    // if status != ok exit
+    if (status != 1) {
+        printf("Got unexpected status code: %i\n", status);
+        return;
+    }
+
+    // if hash of body does not match hash in header exit
+    hashdata_t response_hash;
+    get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
+    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+        if (response_hash[i] != registration_checksum[i]) {
+            printf("Checksum did not match");
+            return;
+        }
+    }
+
+    get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
+    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
+        if (response_hash[i] != total_registration_checksum[i]) {
+            printf("Checksum did not match");
+            return;
+        }
+    }
+
     Fputs(response_body, stdout);
     printf("\n");
 }
