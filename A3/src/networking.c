@@ -220,11 +220,9 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     // if hash of body does not match hash in header exit
     hashdata_t response_hash;
     get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
-    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
-        if (response_hash[i] != block_checksum[i]) {
-            printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
-            return;
-        }
+    if (memcmp(response_hash, block_checksum, SHA256_HASH_SIZE) != 0) {
+        printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
+        return;
     }
 
     // if amount of blocks to be read is 0, check if total hash matches,
@@ -232,12 +230,11 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     if (num_blocks == 1) {
         hashdata_t total_hash;
         get_data_sha(response_body, total_hash, len, SHA256_HASH_SIZE);
-        for (int i = 0; i < SHA256_HASH_SIZE; i++) {
-            if (total_hash[i] != total_checksum[i]) {
-                printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
-                return;
-            }
+        if (memcmp(total_hash, total_checksum, SHA256_HASH_SIZE) != 0) {
+            printf("Checksum for all blocks does not match\n");
+            return;
         }
+
         FILE* fp = Fopen(to_get, "w");
         Fwrite(response_body, 1, strlen(response_body), fp);
         printf("Retrieved data written to %s\n", to_get);
@@ -278,12 +275,11 @@ void get_file(char* username, char* password, char* salt, char* to_get)
 
         hashdata_t response_hash;
         get_data_sha(response_body, response_hash, len, SHA256_HASH_SIZE);
-        for (int i = 0; i < SHA256_HASH_SIZE; i++) {
-            if (response_hash[i] != block_checksum[i]) {
-                printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
-                return;
-            }
+        if (memcmp(response_hash, block_checksum, SHA256_HASH_SIZE) != 0) {
+            printf("Block %i/%i checksums do not match\n", block_num, num_blocks);
+            return;
         }
+
         // copy response into array holding all blocks
         memcpy(all_blocks[block_num], response_body, len);
         // if amount of blocks read = amount of blocks to be read, stop reading
@@ -295,11 +291,9 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     // check if hash of all blocks matches total hash from header
     hashdata_t total_hash;
     get_data_sha(all_blocks[0], total_hash, strlen(all_blocks[0]), SHA256_HASH_SIZE);
-    for (int i = 0; i < SHA256_HASH_SIZE; i++) {
-        if (total_hash[i] != total_checksum[i]) {
-            printf("Checksum for all blocks does not match\n");
-            return;
-        }
+    if (memcmp(total_hash, total_checksum, SHA256_HASH_SIZE) != 0) {
+        printf("Checksum for all blocks does not match\n");
+        return;
     }
 
     // data is correct, so write it to file
@@ -385,16 +379,16 @@ int main(int argc, char **argv)
     // Note that a random salt should be used, but you may find it easier to
     // repeatedly test the same user credentials by using the hard coded value
     // below instead, and commenting out this randomly generating section.
-    /*for (int i=0; i<SALT_LEN; i++)
+    for (int i=0; i<SALT_LEN; i++)
     {
         user_salt[i] = 'a' + (random() % 26);
     }
-    user_salt[SALT_LEN] = '\0';*/
-    strncpy(user_salt, 
+    user_salt[SALT_LEN] = '\0';
+    /*strncpy(user_salt, 
         "0123456789012345678901234567890123456789012345678901234567890123\0", 
         SALT_LEN+1);
 
-    fprintf(stdout, "Using salt: %s\n", user_salt);
+    fprintf(stdout, "Using salt: %s\n", user_salt);*/
 
     // The following function calls have been added as a structure to a 
     // potential solution demonstrating the core functionality. Feel free to 
@@ -408,6 +402,9 @@ int main(int argc, char **argv)
 
     // Retrieve the larger file, that requires support for blocked messages
     get_file(username, password, user_salt, "hamlet.txt");
+
+    // Retrieve file that doesn't exist
+    get_file(username, password, user_salt, "lmao.txt");
 
     exit(EXIT_SUCCESS);
 }
