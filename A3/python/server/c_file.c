@@ -293,7 +293,7 @@ void get_file(char* username, char* password, char* salt, char* to_get)
     get_data_sha(all_blocks[0], total_hash, strlen(all_blocks[0]), SHA256_HASH_SIZE);
     if (memcmp(total_hash, total_checksum, SHA256_HASH_SIZE) != 0) {
         printf("Checksum for all blocks does not match\n");
-        return;
+        //return;
     }
 
     // data is correct, so write it to file
@@ -404,13 +404,10 @@ int main(int argc, char **argv)
     get_file(username, password, user_salt, "hamlet.txt");
 
     // Retrieve a file of different type
-    get_file(username, password, user_salt, "c_test.c");
-
-    // Retrieve a file of another type
-    get_file(username, password, user_salt, "Makefile_test");
+    get_file(username, password, user_salt, "networking.c");
 
     // Retrieve file that doesn't exist
-    get_file(username, password, user_salt, "does_not_exist.txt");
+    //get_file(username, password, user_salt, "does_not_exist.txt");
 
     exit(EXIT_SUCCESS);
 }
