@@ -333,22 +333,18 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     {
         if (command == COMMAND_REGISTER)
         {
+            pthread_mutex_lock(&network_mutex);
             for (uint32_t i = 0; i < reply_length; i = i + 20) {
                 PeerAddress_t *peer_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
-                memcpy(peer_address->ip, &reply_body[i], 16);
+                memcpy(peer_address->ip, &reply_body[i], IP_LEN);
                 
-                // no way this is necessary, but idk how else to do it
-                uint32_t port = ntohl(*(uint32_t*)&reply_body[i+16]);
-                char s_port[PORT_LEN];
-                sprintf(s_port, "%d", port);
-                memcpy(peer_address->port, s_port, PORT_LEN);
-
-                // network is shared between client and server so need to lock
-                pthread_mutex_lock(&network_mutex);
+                uint32_t port = ntohl(*(uint32_t*)&reply_body[i+IP_LEN]);
+                sprintf(peer_address->port, "%d", port);
+                
                 network[i/20] = peer_address;
-                pthread_mutex_unlock(&network_mutex);
             }
             peer_count = reply_length/20;
+            pthread_mutex_unlock(&network_mutex);
         }
     } 
     else
@@ -428,8 +424,45 @@ void handle_retreive(int connfd, char* request)
  */
 void handle_server_request(int connfd)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    rio_t rio;
+    char msg_buf[MAX_MSG_LEN];
+    Rio_readinitb(&rio, connfd);
+
+    // Read request
+    Rio_readnb(&rio, msg_buf, REQUEST_HEADER_LEN);
+
+    // Extract the request header
+    char request_header[REQUEST_HEADER_LEN];
+    memcpy(request_header, msg_buf, REQUEST_HEADER_LEN);
+
+    char ip[IP_LEN];
+    memcpy(ip, request_header, IP_LEN);
+    uint32_t port = ntohl(*(uint32_t*)&request_header[IP_LEN]);
+    uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+4]);
+    uint32_t length = ntohl(*(uint32_t*)&request_header[IP_LEN+8]);
+    printf("IP = %s\nPort = %s\ncommand = %u, length = %u\n", ip, port, command, length);
+    
+    char request_body[length];
+    Rio_readnb(&rio, msg_buf, length);
+    memcpy(request_body, msg_buf, length);
+
+    switch(command) {
+        case COMMAND_REGISTER:
+            handle_register(connfd, ip, port);
+            break;
+        
+        case COMMAND_RETREIVE:
+            handle_retrieve(connfd, request_body);
+            break;
+
+        case COMMAND_INFORM:
+            handle_inform(request_body);
+            break;
+
+        default:
+            printf("Malformed request\n"); // add proper reply to client
+            break;
+    }
 }
 
 /*
@@ -437,9 +470,19 @@ void handle_server_request(int connfd)
  * run concurrently with the client thread, but is infinite in nature.
  */
 void* server_thread()
-{
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+{   
+    int listenfd, *connfdp;
+    socklen_t clientlen;
+    struct sockaddr_storage clientaddr;
+    pthread_t tid;
+    listenfd = Open_listenfd(MY_PORT);
+    while (1) {
+        clientlen=sizeof(struct sockaddr_storage);
+        connfdp = Malloc(sizeof(int));
+        *connfdp = Accept(listenfd, (SA *) &clientaddr, &clientlen);
+        Pthread_create(&tid, NULL, handle_server_request, connfdp);
+    }
+    return 0;
 }
 
 
