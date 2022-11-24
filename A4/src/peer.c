@@ -412,7 +412,7 @@ void handle_inform(char* request)
  * Handle 'retrieve' type messages as defined by the assignment text. This will
  * always generate a response
  */
-void handle_retreive(int connfd, char* request)
+void handle_retrieve(int connfd, char* request)
 {
     // Your code here. This function has been added as a guide, but feel free 
     // to add more, or work in other parts of the code
@@ -422,7 +422,7 @@ void handle_retreive(int connfd, char* request)
  * Handler for all server requests. This will call the relevent function based 
  * on the parsed command code
  */
-void handle_server_request(int connfd)
+void* handle_server_request(int connfd)
 {
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
@@ -440,7 +440,7 @@ void handle_server_request(int connfd)
     uint32_t port = ntohl(*(uint32_t*)&request_header[IP_LEN]);
     uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+4]);
     uint32_t length = ntohl(*(uint32_t*)&request_header[IP_LEN+8]);
-    printf("IP = %s\nPort = %s\ncommand = %u, length = %u\n", ip, port, command, length);
+    printf("IP = %s\nPort = %u\ncommand = %u, length = %u\n", ip, port, command, length);
     
     char request_body[length];
     Rio_readnb(&rio, msg_buf, length);
@@ -469,7 +469,7 @@ void handle_server_request(int connfd)
  * Function to act as basis for running the server thread. This thread will be
  * run concurrently with the client thread, but is infinite in nature.
  */
-void* server_thread()
+void* server_thread() // probably do this while (1) etc. in main
 {   
     int listenfd, *connfdp;
     socklen_t clientlen;
