@@ -201,6 +201,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     memcpy(ref_hash, &total_hash, SHA256_HASH_SIZE);
     uint32_t ref_count = block_count;
 
+    pthread_mutex_lock(&retrieving_mutex);
     // Loop until all blocks have been recieved
     for (uint32_t b=0; b<ref_count; b++)
     {
@@ -301,6 +302,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
             Fclose(fp);
         }
     }
+    pthread_mutex_unlock(&retrieving_mutex);
 
     // Confirm that our file is indeed correct
     if (command == COMMAND_RETREIVE)
@@ -333,6 +335,8 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     {
         if (command == COMMAND_REGISTER)
         {
+            // check duplicates and checksum
+            // CURRENTLY ASSUMED THAT NETWORK IS ONE BLOCK
             pthread_mutex_lock(&network_mutex);
             for (uint32_t i = 0; i < reply_length; i = i + 20) {
                 PeerAddress_t *peer_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
@@ -394,8 +398,44 @@ void* client_thread(void* thread_args)
  */
 void handle_register(int connfd, char* client_ip, int client_port_int)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    // CURRENTLY ASSUMED THAT THE NETWORK IS SMALL ENOUGH TO FIT IN ONE BLOCK
+    char client_port_string[PORT_LEN];
+    sprintf(client_port_string, "%d", client_port_int);
+    uint32_t status_code = STATUS_OK;
+
+    if (!is_valid_ip(client_ip) || !is_valid_port(client_port_string)) {
+        status_code = STATUS_MALFORMED;
+    }
+
+    for (uint32_t i = 0; i < peer_count; i++) {
+        if (strcmp(client_ip, network[i]->ip) == 0 &&
+            strcmp(client_port_string, network[i]->port) == 0) {
+                status_code = STATUS_PEER_EXISTS;
+        }
+    }
+
+    uint32_t reply_body_length = 20*peer_count;
+    char reply_body[reply_body_length];
+
+    for (uint32_t i = 0; i < peer_count; i++) {
+        memcpy(&reply_body[i*20], network[i]->ip, IP_LEN);
+        uint32_t port = atoi(network[i]->port);
+        sprintf(&reply_body[i*20+IP_LEN], "%u", htonl(port));
+    }
+    char reply_header[REPLY_HEADER_LEN];
+    snprintf(&reply_header[0], 4, "%d", htonl(reply_body_length));
+    sprintf(&reply_header[4], 4, "%d", htonl(status_code));
+    sprintf(&reply_header[8], 4, "%d", htonl(0));
+    sprintf(&reply_header[12], 4, "%d", htonl(1));
+    hashdata_t file_hash;
+    get_data_sha(reply_body, file_hash, reply_body_length, SHA256_HASH_SIZE);
+    memcpy(&reply_header[16], file_hash, SHA256_HASH_SIZE);
+    memcpy(&reply_header[48], file_hash, SHA256_HASH_SIZE);
+
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    Rio_writen(connfd, reply_header, REPLY_HEADER_LEN);
+    Rio_writen(connfd, reply_body, reply_body_length);
 }
 
 /*
@@ -443,7 +483,6 @@ void* handle_server_request(void* vargp)
     uint32_t port = ntohl(*(uint32_t*)&request_header[IP_LEN]);
     uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+4]);
     uint32_t length = ntohl(*(uint32_t*)&request_header[IP_LEN+8]);
-    printf("IP = %s\nPort = %u\ncommand = %u, length = %u\n", ip, port, command, length);
     
     char request_body[length];
     Rio_readnb(&rio, msg_buf, length);
@@ -483,7 +522,8 @@ void* server_thread() // probably do this while (1) etc. in main
         clientlen=sizeof(struct sockaddr_storage);
         connfdp = Malloc(sizeof(int));
         *connfdp = Accept(listenfd, (SA *) &clientaddr, &clientlen);
-        Pthread_create(&tid, NULL, handle_server_request, connfdp);
+        handle_server_request(connfdp);
+        //Pthread_create(&tid, NULL, handle_server_request, connfdp);
     }
     return 0;
 }
