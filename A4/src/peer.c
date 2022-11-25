@@ -422,8 +422,11 @@ void handle_retrieve(int connfd, char* request)
  * Handler for all server requests. This will call the relevent function based 
  * on the parsed command code
  */
-void* handle_server_request(int connfd)
+void* handle_server_request(void* vargp)
 {
+    int connfd = *((int*) vargp);
+    Pthread_detach(Pthread_self());
+    Free(vargp);
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
     Rio_readinitb(&rio, connfd);
@@ -475,7 +478,7 @@ void* server_thread() // probably do this while (1) etc. in main
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
     pthread_t tid;
-    listenfd = Open_listenfd(MY_PORT);
+    listenfd = Open_listenfd(my_address->port);
     while (1) {
         clientlen=sizeof(struct sockaddr_storage);
         connfdp = Malloc(sizeof(int));
