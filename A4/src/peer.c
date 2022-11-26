@@ -414,19 +414,36 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
         }
     }
 
+    PeerAddress_t *peer_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
+    memcpy(peer_address->ip, client_ip, IP_LEN);
+    memcpy(peer_address->port, client_port_string, IP_LEN);
+    
+    pthread_mutex_lock(&network_mutex);
+    network[peer_count] = peer_address;
+    peer_count++;
+    pthread_mutex_unlock(&network_mutex);
+
     uint32_t reply_body_length = 20*peer_count;
     char reply_body[reply_body_length];
 
     for (uint32_t i = 0; i < peer_count; i++) {
         memcpy(&reply_body[i*20], network[i]->ip, IP_LEN);
-        uint32_t port = atoi(network[i]->port);
-        sprintf(&reply_body[i*20+IP_LEN], "%u", htonl(port));
+        uint32_t n_port = htonl(atoi(network[i]->port));
+        memcpy(&reply_body[i*20+IP_LEN], &n_port, 4);
     }
+
     char reply_header[REPLY_HEADER_LEN];
-    snprintf(&reply_header[0], 4, "%d", htonl(reply_body_length));
-    sprintf(&reply_header[4], 4, "%d", htonl(status_code));
-    sprintf(&reply_header[8], 4, "%d", htonl(0));
-    sprintf(&reply_header[12], 4, "%d", htonl(1));
+
+    //snprintf(&reply_header[0], 4, "%u", htonl(reply_body_length));
+    uint32_t n_rbl = htonl(reply_body_length);
+    memcpy(&reply_header[0], &n_rbl, 4);
+    uint32_t n_status_code = htonl(status_code);
+    memcpy(&reply_header[4], &n_status_code, 4);
+    uint32_t n_this_block = htonl(0);
+    memcpy(&reply_header[8], &n_this_block, 4);
+    uint32_t n_blocks = htonl(1);
+    memcpy(&reply_header[12], &n_blocks, 4);
+
     hashdata_t file_hash;
     get_data_sha(reply_body, file_hash, reply_body_length, SHA256_HASH_SIZE);
     memcpy(&reply_header[16], file_hash, SHA256_HASH_SIZE);
@@ -483,7 +500,7 @@ void* handle_server_request(void* vargp)
     uint32_t port = ntohl(*(uint32_t*)&request_header[IP_LEN]);
     uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+4]);
     uint32_t length = ntohl(*(uint32_t*)&request_header[IP_LEN+8]);
-    
+
     char request_body[length];
     Rio_readnb(&rio, msg_buf, length);
     memcpy(request_body, msg_buf, length);
@@ -505,6 +522,7 @@ void* handle_server_request(void* vargp)
             printf("Malformed request\n"); // add proper reply to client
             break;
     }
+    return 0;
 }
 
 /*
