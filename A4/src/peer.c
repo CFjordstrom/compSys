@@ -434,7 +434,6 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
 
     char reply_header[REPLY_HEADER_LEN];
 
-    //snprintf(&reply_header[0], 4, "%u", htonl(reply_body_length));
     uint32_t n_rbl = htonl(reply_body_length);
     memcpy(&reply_header[0], &n_rbl, 4);
     uint32_t n_status_code = htonl(status_code);
@@ -461,8 +460,21 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
  */
 void handle_inform(char* request)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    PeerAddress_t *peer_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
+    memcpy(peer_address->ip, request, IP_LEN);
+    uint32_t port = ntohl(*(uint32_t*)&request[IP_LEN]);
+    sprintf(peer_address->port, "%d", port);
+    
+    pthread_mutex_lock(&network_mutex);
+    network[peer_count] = peer_address;
+    peer_count++;
+    printf("Informed of new peer %s:%s\n", peer_address->ip, peer_address->port);
+    printf("Network is: ");
+    for (uint32_t i = 0; i < peer_count; i++) {
+        printf("%s:%s, ", network[i]->ip, network[i]->port);
+    }
+    printf("\n");
+    pthread_mutex_unlock(&network_mutex);
 }
 
 /*
@@ -471,8 +483,7 @@ void handle_inform(char* request)
  */
 void handle_retrieve(int connfd, char* request)
 {
-    // Your code here. This function has been added as a guide, but feel free 
-    // to add more, or work in other parts of the code
+    printf("connfd = %i\nrequest = %s\n", connfd, request);
 }
 
 /*
@@ -529,7 +540,7 @@ void* handle_server_request(void* vargp)
  * Function to act as basis for running the server thread. This thread will be
  * run concurrently with the client thread, but is infinite in nature.
  */
-void* server_thread() // probably do this while (1) etc. in main
+void* server_thread()
 {   
     int listenfd, *connfdp;
     socklen_t clientlen;
@@ -540,8 +551,7 @@ void* server_thread() // probably do this while (1) etc. in main
         clientlen=sizeof(struct sockaddr_storage);
         connfdp = Malloc(sizeof(int));
         *connfdp = Accept(listenfd, (SA *) &clientaddr, &clientlen);
-        handle_server_request(connfdp);
-        //Pthread_create(&tid, NULL, handle_server_request, connfdp);
+        Pthread_create(&tid, NULL, handle_server_request, connfdp);
     }
     return 0;
 }
