@@ -289,7 +289,6 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
                 printf("Failed to open destination: %s\n", output_file_path);
                 Close(peer_socket);
             }
-
             uint32_t offset = this_block * (MAX_MSG_LEN-REPLY_HEADER_LEN);
             fprintf(stdout, "Block num: %d/%d (offset: %d)\n", this_block+1, 
                 block_count, offset);
@@ -397,7 +396,7 @@ void* client_thread(void* thread_args)
  * should always generate a response.
  */
 void handle_register(int connfd, char* client_ip, int client_port_int)
-{
+{   
     // CURRENTLY ASSUMED THAT THE NETWORK IS SMALL ENOUGH TO FIT IN ONE BLOCK
     char client_port_string[PORT_LEN];
     sprintf(client_port_string, "%d", client_port_int);
@@ -448,10 +447,18 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
     memcpy(&reply_header[16], file_hash, SHA256_HASH_SIZE);
     memcpy(&reply_header[48], file_hash, SHA256_HASH_SIZE);
 
+    printf("Sending reply 1/1 with payload length of %u\n", reply_body_length);
+
     rio_t rio;
     Rio_readinitb(&rio, connfd);
     Rio_writen(connfd, reply_header, REPLY_HEADER_LEN);
     Rio_writen(connfd, reply_body, reply_body_length);
+    printf("Registered new peer %s:%s\n", client_ip, client_port_string);
+    printf("Network is: ");
+    for (uint32_t i = 0; i < peer_count; i++) {
+        printf("%s:%s, ", network[i]->ip, network[i]->port);
+    }
+    printf("\n");
 }
 
 /*
@@ -483,8 +490,57 @@ void handle_inform(char* request)
  */
 void handle_retrieve(int connfd, char* request)
 {
-    printf("connfd = %i\nrequest = %s\n", connfd, request);
-}
+    // if file in retrieving files -> wait
+    FILE* fp = Fopen(request, "r");
+    fseek(fp, 0, SEEK_END);
+    uint32_t file_size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    char file[file_size];
+    Fread(file, file_size, 1, fp);
+    fseek(fp, 0, SEEK_SET);
+
+    hashdata_t total_hash;
+    get_data_sha(file, total_hash, file_size, SHA256_HASH_SIZE);
+
+    uint32_t block_count = (file_size + (MAX_REPLY_LEN - 1)) / MAX_REPLY_LEN;
+
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    printf("Sending requested data from %s\n", request);
+    uint32_t status_code = STATUS_OK;
+
+    for (uint32_t i = 0; i < block_count; i++) {
+        char block[MAX_REPLY_LEN+1];
+        size_t block_size = Fread(block, 1, MAX_REPLY_LEN, fp);
+        block[MAX_MSG_LEN] = 0;
+        hashdata_t block_hash;
+        get_data_sha(block, block_hash, block_size, SHA256_HASH_SIZE);
+        
+        char reply_header[REPLY_HEADER_LEN];
+
+        uint32_t n_length = htonl(block_size);
+        memcpy(&reply_header[0], &n_length, 4);
+
+        uint32_t n_status_code = htonl(status_code);
+        memcpy(&reply_header[4], &n_status_code, 4);
+
+        uint32_t n_this_block = htonl(i);
+        memcpy(&reply_header[8], &n_this_block, 4);
+
+        uint32_t n_block_count = htonl(block_count);
+        memcpy(&reply_header[12], &n_block_count, 4);
+
+        memcpy(&reply_header[16], block_hash, SHA256_HASH_SIZE);
+        memcpy(&reply_header[48], total_hash, SHA256_HASH_SIZE);
+
+        printf("Sending reply %u/%u with payload length of %lu\n", i+1, block_count, block_size);
+        Rio_writen(connfd, reply_header, REPLY_HEADER_LEN);
+        Rio_writen(connfd, block, block_size);
+
+    }
+    Fclose(fp);
+}   
 
 /*
  * Handler for all server requests. This will call the relevent function based 
@@ -512,20 +568,26 @@ void* handle_server_request(void* vargp)
     uint32_t command = ntohl(*(uint32_t*)&request_header[IP_LEN+4]);
     uint32_t length = ntohl(*(uint32_t*)&request_header[IP_LEN+8]);
 
-    char request_body[length];
+    char request_body[length+1];
     Rio_readnb(&rio, msg_buf, length);
     memcpy(request_body, msg_buf, length);
+    request_body[length] = 0;
+    char port_string[PORT_LEN];
+    sprintf(port_string, "%d", port);
 
     switch(command) {
         case COMMAND_REGISTER:
+            printf("Got registration message from %s:%s\n", ip, port_string);
             handle_register(connfd, ip, port);
             break;
         
         case COMMAND_RETREIVE:
+            printf("Got request message from %s:%s\n", ip, port_string);
             handle_retrieve(connfd, request_body);
             break;
 
         case COMMAND_INFORM:
+            printf("Got inform from %s:%s\n", ip, port_string);
             handle_inform(request_body);
             break;
 

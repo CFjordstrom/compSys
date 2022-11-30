@@ -28,6 +28,7 @@
 #define REPLY_HEADER_LEN        80 
 
 #define MAX_MSG_LEN             8196
+#define MAX_REPLY_LEN           8116
 
 #define PATH_LEN                128
 
