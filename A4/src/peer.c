@@ -138,10 +138,16 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
 {
     fprintf(stdout, "Connecting to server at %s:%s to run command %d (%s)\n", 
         peer_address.ip, peer_address.port, command, request_body);
-
+    
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
     FILE* fp;
+    printf("length of request body = %li\n", strlen(request_body));
+    printf("contents of request body\n");
+    char ip[IP_LEN];
+    memcpy(ip, request_body, IP_LEN);
+    uint32_t port = ntohl(*(uint32_t*)&request_body[IP_LEN]);
+    printf("%s:%u\n", ip, port);
 
     // Setup the eventual output file path. This is being done early so if 
     // something does go wrong at this stage we can avoid all that pesky 
@@ -168,15 +174,21 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     request_header.port = htonl(atoi(my_address->port));
     request_header.command = htonl(command);
     request_header.length = htonl(strlen(request_body));
-
     memcpy(msg_buf, &request_header, REQUEST_HEADER_LEN);
-    memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
+    //memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
 
-    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN+strlen(request_body));
+    
+    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN);
+    Rio_writen(peer_socket, request_body, strlen(request_body));
 
     // We don't expect replies to inform messages so we're done here
     if (command == COMMAND_INFORM)
     {
+        printf("contents of payload of request body\n");
+        char ip[IP_LEN];
+        memcpy(ip, request_body, IP_LEN);
+        uint32_t port = ntohl(*(uint32_t*)&request_body[IP_LEN]);
+        printf("%s:%u\n", ip, port);
         return;
     }
 
@@ -377,16 +389,16 @@ void* client_thread(void* thread_args)
     send_message(*peer_address, COMMAND_REGISTER, "\0");
 
     // Update peer_address with random peer from network
-    get_random_peer(peer_address);
+    //get_random_peer(peer_address);
 
     // Retrieve the smaller file, that doesn't not require support for blocks
-    send_message(*peer_address, COMMAND_RETREIVE, "tiny.txt");
+    //send_message(*peer_address, COMMAND_RETREIVE, "tiny.txt");
 
     // Update peer_address with random peer from network
-    get_random_peer(peer_address);
+    //get_random_peer(peer_address);
 
     // Retrieve the larger file, that requires support for blocked messages
-    send_message(*peer_address, COMMAND_RETREIVE, "hamlet.txt");
+    //send_message(*peer_address, COMMAND_RETREIVE, "hamlet.txt");
 
     return NULL;
 }
@@ -459,6 +471,24 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
         printf("%s:%s, ", network[i]->ip, network[i]->port);
     }
     printf("\n");
+
+    for (uint32_t i = 0; i < peer_count; i++) {
+        if ((strcmp(network[i]->ip, my_address->ip) == 0 
+            && strcmp(network[i]->port, my_address->port) == 0)
+            ||
+            (strcmp(network[i]->ip, client_ip) == 0
+            && strcmp(network[i]->port, client_port_string) == 0)) {
+                continue;
+            }
+        else {
+            char new_peer [20];
+            printf("strlen new_peer = %li\n", strlen(new_peer));
+            memcpy(&new_peer[0], client_ip, IP_LEN);
+            uint32_t n_port = htonl(client_port_int);
+            memcpy(&new_peer[IP_LEN], &n_port, 4);
+            send_message(*network[i], COMMAND_INFORM, new_peer);
+        }
+    }
 }
 
 /*
@@ -471,6 +501,17 @@ void handle_inform(char* request)
     memcpy(peer_address->ip, request, IP_LEN);
     uint32_t port = ntohl(*(uint32_t*)&request[IP_LEN]);
     sprintf(peer_address->port, "%d", port);
+
+    if (!is_valid_ip(peer_address->ip) || !is_valid_port(peer_address->port)) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < peer_count; i++) {
+        if (strcmp(peer_address->ip, network[i]->ip) == 0 &&
+            strcmp(peer_address->port, network[i]->port) == 0) {
+                return;
+        }
+    }
     
     pthread_mutex_lock(&network_mutex);
     network[peer_count] = peer_address;
