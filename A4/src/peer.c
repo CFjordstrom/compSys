@@ -26,7 +26,7 @@ PeerAddress_t** network = NULL;
 uint32_t peer_count = 0;
 
 pthread_mutex_t retrieving_mutex = PTHREAD_MUTEX_INITIALIZER;
-FilePath_t** retrieving_files = NULL;
+FilePath_t* retrieving_files = NULL;
 uint32_t file_count = 0;
 
 
@@ -142,12 +142,6 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
     FILE* fp;
-    printf("length of request body = %li\n", strlen(request_body));
-    printf("contents of request body\n");
-    char ip[IP_LEN];
-    memcpy(ip, request_body, IP_LEN);
-    uint32_t port = ntohl(*(uint32_t*)&request_body[IP_LEN]);
-    printf("%s:%u\n", ip, port);
 
     // Setup the eventual output file path. This is being done early so if 
     // something does go wrong at this stage we can avoid all that pesky 
@@ -160,10 +154,14 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
         if (access(output_file_path, F_OK ) != 0 ) 
         {
             fp = Fopen(output_file_path, "a");
+            memcpy(retrieving_files->path, output_file_path, PATH_LEN);
             Fclose(fp);
         }
     }
-
+    uint32_t request_body_length = strlen(request_body);
+    if (command == COMMAND_INFORM) {
+        request_body_length = IP_LEN + PORT_INT_LEN;
+    }
     // Setup connection
     int peer_socket = Open_clientfd(peer_address.ip, peer_address.port);
     Rio_readinitb(&rio, peer_socket);
@@ -173,22 +171,15 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     strncpy(request_header.ip, my_address->ip, IP_LEN);
     request_header.port = htonl(atoi(my_address->port));
     request_header.command = htonl(command);
-    request_header.length = htonl(strlen(request_body));
+    request_header.length = htonl(request_body_length);
     memcpy(msg_buf, &request_header, REQUEST_HEADER_LEN);
-    //memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, strlen(request_body));
+    memcpy(msg_buf+REQUEST_HEADER_LEN, request_body, request_body_length);
 
-    
-    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN);
-    Rio_writen(peer_socket, request_body, strlen(request_body));
+    Rio_writen(peer_socket, msg_buf, REQUEST_HEADER_LEN+request_body_length);
 
     // We don't expect replies to inform messages so we're done here
     if (command == COMMAND_INFORM)
     {
-        printf("contents of payload of request body\n");
-        char ip[IP_LEN];
-        memcpy(ip, request_body, IP_LEN);
-        uint32_t port = ntohl(*(uint32_t*)&request_body[IP_LEN]);
-        printf("%s:%u\n", ip, port);
         return;
     }
 
@@ -311,6 +302,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
             fseek(fp, offset, SEEK_SET);
             Fputs(payload, fp);
             Fclose(fp);
+            memcpy(retrieving_files->path, "", PATH_LEN);
         }
     }
     pthread_mutex_unlock(&retrieving_mutex);
@@ -349,16 +341,21 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
             // check duplicates and checksum
             // CURRENTLY ASSUMED THAT NETWORK IS ONE BLOCK
             pthread_mutex_lock(&network_mutex);
-            for (uint32_t i = 0; i < reply_length; i = i + 20) {
+            for (uint32_t i = 0; i < reply_length; i = i + IP_LEN + PORT_INT_LEN) {
                 PeerAddress_t *peer_address = (PeerAddress_t*)Malloc(sizeof(PeerAddress_t));
                 memcpy(peer_address->ip, &reply_body[i], IP_LEN);
                 
                 uint32_t port = ntohl(*(uint32_t*)&reply_body[i+IP_LEN]);
                 sprintf(peer_address->port, "%d", port);
                 
-                network[i/20] = peer_address;
+                network[i/(IP_LEN + PORT_INT_LEN)] = peer_address;
             }
-            peer_count = reply_length/20;
+            peer_count = reply_length/(IP_LEN + PORT_INT_LEN);
+            printf("Network is: ");
+            for (uint32_t i = 0; i < peer_count; i++) {
+                printf("%s:%s, ", network[i]->ip, network[i]->port);
+            }
+            printf("\n");
             pthread_mutex_unlock(&network_mutex);
         }
     } 
@@ -389,10 +386,10 @@ void* client_thread(void* thread_args)
     send_message(*peer_address, COMMAND_REGISTER, "\0");
 
     // Update peer_address with random peer from network
-    //get_random_peer(peer_address);
+    get_random_peer(peer_address);
 
     // Retrieve the smaller file, that doesn't not require support for blocks
-    //send_message(*peer_address, COMMAND_RETREIVE, "tiny.txt");
+    send_message(*peer_address, COMMAND_RETREIVE, "tiny.txt");
 
     // Update peer_address with random peer from network
     //get_random_peer(peer_address);
@@ -434,13 +431,13 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
     peer_count++;
     pthread_mutex_unlock(&network_mutex);
 
-    uint32_t reply_body_length = 20*peer_count;
+    uint32_t reply_body_length = (IP_LEN + PORT_INT_LEN)*peer_count;
     char reply_body[reply_body_length];
 
     for (uint32_t i = 0; i < peer_count; i++) {
-        memcpy(&reply_body[i*20], network[i]->ip, IP_LEN);
+        memcpy(&reply_body[i*(IP_LEN + PORT_INT_LEN)], network[i]->ip, IP_LEN);
         uint32_t n_port = htonl(atoi(network[i]->port));
-        memcpy(&reply_body[i*20+IP_LEN], &n_port, 4);
+        memcpy(&reply_body[i*(IP_LEN + PORT_INT_LEN)+IP_LEN], &n_port, 4);
     }
 
     char reply_header[REPLY_HEADER_LEN];
@@ -472,6 +469,7 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
     }
     printf("\n");
 
+    // for every peer in the network, if it's not the client or itself, inform of new peer joining
     for (uint32_t i = 0; i < peer_count; i++) {
         if ((strcmp(network[i]->ip, my_address->ip) == 0 
             && strcmp(network[i]->port, my_address->port) == 0)
@@ -481,11 +479,10 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
                 continue;
             }
         else {
-            char new_peer [20];
-            printf("strlen new_peer = %li\n", strlen(new_peer));
+            char new_peer[IP_LEN + PORT_INT_LEN];
             memcpy(&new_peer[0], client_ip, IP_LEN);
             uint32_t n_port = htonl(client_port_int);
-            memcpy(&new_peer[IP_LEN], &n_port, 4);
+            memcpy(&new_peer[IP_LEN], &n_port, PORT_INT_LEN);
             send_message(*network[i], COMMAND_INFORM, new_peer);
         }
     }
@@ -531,7 +528,10 @@ void handle_inform(char* request)
  */
 void handle_retrieve(int connfd, char* request)
 {
-    // if file in retrieving files -> wait
+    uint32_t status_code = STATUS_OK;
+    if (strncmp(request, retrieving_files->path, strlen(request)) == 0) {
+        status_code = STATUS_OTHER;
+    }
     FILE* fp = Fopen(request, "r");
     fseek(fp, 0, SEEK_END);
     uint32_t file_size = ftell(fp);
@@ -549,7 +549,6 @@ void handle_retrieve(int connfd, char* request)
     rio_t rio;
     Rio_readinitb(&rio, connfd);
     printf("Sending requested data from %s\n", request);
-    uint32_t status_code = STATUS_OK;
 
     for (uint32_t i = 0; i < block_count; i++) {
         char block[MAX_REPLY_LEN+1];
@@ -722,7 +721,7 @@ int main(int argc, char **argv)
     }
     fclose(fp);
 
-    retrieving_files = Malloc(file_count * sizeof(FilePath_t*));
+    retrieving_files = Malloc(sizeof(FilePath_t));
     srand(time(0));
 
     network = Malloc(sizeof(PeerAddress_t*));

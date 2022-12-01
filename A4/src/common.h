@@ -23,6 +23,7 @@
 
 #define IP_LEN                  16
 #define PORT_LEN                8
+#define PORT_INT_LEN            4
 
 #define REQUEST_HEADER_LEN      28
 #define REPLY_HEADER_LEN        80 
