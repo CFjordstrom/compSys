@@ -123,9 +123,7 @@ void get_random_peer(PeerAddress_t* peer_address)
     memcpy(peer_address->port, potential_peers[random_peer_index]->port, 
         PORT_LEN);
 
-    printf("potential_peers\n");
     Free(potential_peers);
-    printf("potential_peers\n");
 
     printf("Selected random peer: %s:%s\n", 
         peer_address->ip, peer_address->port);
@@ -367,9 +365,7 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     {
         printf("Got response code: %d, %s\n", reply_status, reply_body);
     }
-    printf("reply body\n");
     Free(reply_body);
-    printf("reply body\n");
     Close(peer_socket);
 }
 
@@ -600,9 +596,7 @@ void* handle_server_request(void* vargp)
 {
     int connfd = *((int*) vargp);
     Pthread_detach(Pthread_self());
-    printf("vargp\n");
     Free(vargp);
-    printf("vargp\n");
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
     Rio_readinitb(&rio, connfd);
