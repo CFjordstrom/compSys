@@ -123,7 +123,9 @@ void get_random_peer(PeerAddress_t* peer_address)
     memcpy(peer_address->port, potential_peers[random_peer_index]->port, 
         PORT_LEN);
 
+    printf("potential_peers\n");
     Free(potential_peers);
+    printf("potential_peers\n");
 
     printf("Selected random peer: %s:%s\n", 
         peer_address->ip, peer_address->port);
@@ -154,7 +156,9 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
         if (access(output_file_path, F_OK ) != 0 ) 
         {
             fp = Fopen(output_file_path, "a");
+            pthread_mutex_lock(&retrieving_mutex);
             memcpy(retrieving_files->path, output_file_path, PATH_LEN);
+            pthread_mutex_unlock(&retrieving_mutex);
             Fclose(fp);
         }
     }
@@ -204,7 +208,6 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     memcpy(ref_hash, &total_hash, SHA256_HASH_SIZE);
     uint32_t ref_count = block_count;
 
-    pthread_mutex_lock(&retrieving_mutex);
     // Loop until all blocks have been recieved
     for (uint32_t b=0; b<ref_count; b++)
     {
@@ -302,10 +305,11 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
             fseek(fp, offset, SEEK_SET);
             Fputs(payload, fp);
             Fclose(fp);
+            pthread_mutex_lock(&retrieving_mutex);
             memcpy(retrieving_files->path, "", PATH_LEN);
+            pthread_mutex_unlock(&retrieving_mutex);
         }
     }
-    pthread_mutex_unlock(&retrieving_mutex);
 
     // Confirm that our file is indeed correct
     if (command == COMMAND_RETREIVE)
@@ -363,7 +367,9 @@ void send_message(PeerAddress_t peer_address, int command, char* request_body)
     {
         printf("Got response code: %d, %s\n", reply_status, reply_body);
     }
+    printf("reply body\n");
     Free(reply_body);
+    printf("reply body\n");
     Close(peer_socket);
 }
 
@@ -392,10 +398,10 @@ void* client_thread(void* thread_args)
     send_message(*peer_address, COMMAND_RETREIVE, "tiny.txt");
 
     // Update peer_address with random peer from network
-    //get_random_peer(peer_address);
+    get_random_peer(peer_address);
 
     // Retrieve the larger file, that requires support for blocked messages
-    //send_message(*peer_address, COMMAND_RETREIVE, "hamlet.txt");
+    send_message(*peer_address, COMMAND_RETREIVE, "hamlet.txt");
 
     return NULL;
 }
@@ -415,6 +421,7 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
         status_code = STATUS_MALFORMED;
     }
 
+    pthread_mutex_lock(&network_mutex);
     for (uint32_t i = 0; i < peer_count; i++) {
         if (strcmp(client_ip, network[i]->ip) == 0 &&
             strcmp(client_port_string, network[i]->port) == 0) {
@@ -426,10 +433,8 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
     memcpy(peer_address->ip, client_ip, IP_LEN);
     memcpy(peer_address->port, client_port_string, IP_LEN);
     
-    pthread_mutex_lock(&network_mutex);
     network[peer_count] = peer_address;
     peer_count++;
-    pthread_mutex_unlock(&network_mutex);
 
     uint32_t reply_body_length = (IP_LEN + PORT_INT_LEN)*peer_count;
     char reply_body[reply_body_length];
@@ -486,6 +491,7 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
             send_message(*network[i], COMMAND_INFORM, new_peer);
         }
     }
+    pthread_mutex_unlock(&network_mutex);
 }
 
 /*
@@ -503,6 +509,7 @@ void handle_inform(char* request)
         return;
     }
 
+    pthread_mutex_lock(&network_mutex);
     for (uint32_t i = 0; i < peer_count; i++) {
         if (strcmp(peer_address->ip, network[i]->ip) == 0 &&
             strcmp(peer_address->port, network[i]->port) == 0) {
@@ -510,7 +517,6 @@ void handle_inform(char* request)
         }
     }
     
-    pthread_mutex_lock(&network_mutex);
     network[peer_count] = peer_address;
     peer_count++;
     printf("Informed of new peer %s:%s\n", peer_address->ip, peer_address->port);
@@ -529,9 +535,12 @@ void handle_inform(char* request)
 void handle_retrieve(int connfd, char* request)
 {
     uint32_t status_code = STATUS_OK;
+    pthread_mutex_lock(&retrieving_mutex);
     if (strncmp(request, retrieving_files->path, strlen(request)) == 0) {
         status_code = STATUS_OTHER;
     }
+    pthread_mutex_unlock(&retrieving_mutex);
+
     FILE* fp = Fopen(request, "r");
     fseek(fp, 0, SEEK_END);
     uint32_t file_size = ftell(fp);
@@ -579,6 +588,7 @@ void handle_retrieve(int connfd, char* request)
         Rio_writen(connfd, block, block_size);
 
     }
+
     Fclose(fp);
 }   
 
@@ -590,7 +600,9 @@ void* handle_server_request(void* vargp)
 {
     int connfd = *((int*) vargp);
     Pthread_detach(Pthread_self());
+    printf("vargp\n");
     Free(vargp);
+    printf("vargp\n");
     rio_t rio;
     char msg_buf[MAX_MSG_LEN];
     Rio_readinitb(&rio, connfd);
