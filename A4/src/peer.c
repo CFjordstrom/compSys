@@ -399,6 +399,12 @@ void* client_thread(void* thread_args)
     // Retrieve the larger file, that requires support for blocked messages
     send_message(*peer_address, COMMAND_RETREIVE, "hamlet.txt");
 
+    // Update peer_address with random peer from network
+    get_random_peer(peer_address);
+
+    // Request file that does not exist
+    send_message(*peer_address, COMMAND_RETREIVE, "does_not_exist.txt");
+
     return NULL;
 }
 
@@ -429,8 +435,10 @@ void handle_register(int connfd, char* client_ip, int client_port_int)
     memcpy(peer_address->ip, client_ip, IP_LEN);
     memcpy(peer_address->port, client_port_string, IP_LEN);
     
-    network[peer_count] = peer_address;
-    peer_count++;
+    if (status_code == STATUS_OK) {
+        network[peer_count] = peer_address;
+        peer_count++;
+    }
 
     uint32_t reply_body_length = (IP_LEN + PORT_INT_LEN)*peer_count;
     char reply_body[reply_body_length];
@@ -582,9 +590,7 @@ void handle_retrieve(int connfd, char* request)
         printf("Sending reply %u/%u with payload length of %lu\n", i+1, block_count, block_size);
         Rio_writen(connfd, reply_header, REPLY_HEADER_LEN);
         Rio_writen(connfd, block, block_size);
-
     }
-
     Fclose(fp);
 }   
 
