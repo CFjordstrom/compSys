@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 // create registers as struct or array of 32 ints
-int x[32] = {0};
+int x[32];
 
 // alu signals and muxes
 struct aluControl{
@@ -43,8 +43,12 @@ int get_ins_field(int ins, int end, int start) {
 }
 
 // sets alu control signals and mux'es based on opcode and funct fields
+// actually also sets registers for now
 // print statements purely for convenience
-void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7){
+
+void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7, int ins, int rd, int rs1, int rs2){
+    int immediate = 0;
+    int shamt;
     switch(opcode){
         case 3:
             switch(funct3){
@@ -73,42 +77,64 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
             }
             break;
 
-        case 19:
+        case 19: 
+            // I-format; we calculate immediate [11:0] from bits [31:20].
+            // and we recall that shamt[4:0] equals bits [24:20] (rs2)
+            immediate = get_ins_field(ins, 31, 20);
+            shamt = rs2;
+            //remember to sign-extend immediate
             switch(funct3){
                 case 0:
                     printf("instruction: addi\n");
+                    x[rd] = x[rs1] + immediate;
                     break;
 
                 case 1:
                     printf("instruction: slli\n");
+                    x[rd] = x[rs1] << shamt;
                     break;
 
                 case 2:
                     printf("instruction: slti\n");
+                    if(x[rs1] < immediate){
+                        x[rd] = 1;
+                    }else{
+                        x[rd] = 0;
+                    }
                     break;
 
                 case 3:
                     printf("instruction: sltu\n");
+                    if(x[rs1] < x[rs2]){
+                        x[rd] = 1;
+                    }else{
+                        x[rd] = 0;
+                    }
                     break;
 
                 case 4:
-                    printf("instruction: xor\n");
+                    printf("instruction: xori\n");
+                    x[rd] = x[rs1] ^ immediate;
                     break;
 
                 case 5:
                     if(funct7 == 0){
                         printf("instruction: srli\n");
+                        // implement logical right shift for signed int
                     }else{
                         printf("instruction: srai\n");
+                        x[rd] = x[rs1] >> shamt;
                     }
                     break;
 
                 case 6:
                     printf("instruction: ori\n");
+                    x[rd] = x[rs1] | immediate;
                     break;
 
                 case 7:
                     printf("instruction: andi\n");
+                    x[rd] = x[rs1] & immediate;
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -210,6 +236,9 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
 
         case 55:
             printf("instruction: lui\n");
+            // set x[rd] = immediate[31:12] << 12
+            immediate = get_ins_field(ins, 31, 12);
+            x[rd] = immediate<<12;
             break;
 
         case 59:
@@ -284,6 +313,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     memset(&signals, 0, sizeof(signals));
     int PC = start_addr;
 
+
     // idk how we terminate, counter for convenience, will remove
     int ins_ctr = 0;
     while(ins_ctr++ < 20){
@@ -296,18 +326,21 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int rs2 = get_ins_field(ins, 24, 20);
         int funct7 = get_ins_field(ins, 31, 25);
 
-        printf("Instruction %d\n", ins_ctr);
-        printf("opcode = 0x%x\n", opcode);
-
         // decode instruction, set control signals
-        set_signals(signals, opcode, funct3, funct7);
+        printf("Instruction %d:\n", ins_ctr);
+        set_signals(signals, opcode, funct3, funct7, ins, rd, rs1, rs2);
+        printf("opcode = 0x%x\n", opcode);
+        printf("address: 0x%x\n", PC);
+        printf("rd: %d\n", rd);
+        printf("rs1: x[%d]\n", rs1);
+        printf("rs2: x[%d]\n", rs2);
         printf("\n");
 
         // set registers, compute branch address
 
         // execute ALU, execute load/store
 
-
+        // increment PC, clear temp registers?
         PC += 4;
     }
 
