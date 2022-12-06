@@ -137,47 +137,102 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
             break;
         
         case 51:
-            switch(funct3){
-                case 0:
-                    if (funct7 == 0){
-                        printf("instruction: add\n");
-                    }else{
-                        printf("instruction: sub\n");
-                    }
-                    break;
-                case 1:
-                    printf("instruction: sll\n");
-                    break;
-                case 2:
-                    printf("instruction: slt\n");
-                    break;
-                case 3:
-                    printf("instruction: sltu\n");
-                    break;
-                case 4:
-                    printf("instruction: xor\n");
-                    break;
-                case 5:
-                    if (funct7 == 0){
-                        printf("instruction: srl\n");
-                    }else{
-                        printf("instruction: sra\n");
-                    }
-                    break;
-                case 6:
-                    printf("instruction: or\n");
-                    break;
-                case 7:
-                    printf("instruction: and\n");
-                    break;
-                default:
-                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
-                    return 1;
+            if(funct7 == 1){
+                switch (funct3){
+                    case 0:
+                        printf("instruction: mul\n");
+                        break;
+                    case 1:
+                        printf("instruction: mulh\n");
+                        break;
+                    case 2:
+                        printf("instruction: mulhsu\n");
+                        break;
+                    case 3:
+                        printf("instruction: mulhu\n");
+                        break;
+                    case 4:
+                        printf("instruction: div\n");
+                        break;
+                    case 5:
+                        printf("instruction: divu\n");
+                        break;
+                    case 6:
+                        printf("instruction: rem\n");
+                        break;
+                    case 7:
+                        printf("instruction: remu\n");
+                        break;
+                    default:
+                        printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                        break;
+                }
+            }else{
+                switch(funct3){
+                    case 0:
+                        if (funct7 == 0){
+                            printf("instruction: add\n");
+                        }else{
+                            printf("instruction: sub\n");
+                        }
+                        break;
+                    case 1:
+                        printf("instruction: sll\n");
+                        break;
+                    case 2:
+                        printf("instruction: slt\n");
+                        break;
+                    case 3:
+                        printf("instruction: sltu\n");
+                        break;
+                    case 4:
+                        printf("instruction: xor\n");
+                        break;
+                    case 5:
+                        if (funct7 == 0){
+                            printf("instruction: srl\n");
+                        }else{
+                            printf("instruction: sra\n");
+                        }
+                        break;
+                    case 6:
+                        printf("instruction: or\n");
+                        break;
+                    case 7:
+                        printf("instruction: and\n");
+                        break;
+                    default:
+                        printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                        return 1;
+                }
             }
             break;
 
         case 55:
-            
+            printf("instruction: lui\n");
+            break;
+
+        case 59:
+            switch (funct3){
+                case 0:
+                    printf("instruction: mulw\n");
+                    break;
+                case 4:
+                    printf("instruction: divw\n");
+                    break;
+                case 5:
+                    printf("instruction: divuw\n");
+                    break;
+                case 6:
+                    printf("instruction: remw\n");
+                    break;
+                case 7:
+                    printf("instruction: remuw\n");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    break;
+            }
             printf("instruction: lui\n");
             break;
 
@@ -212,6 +267,10 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
             printf("instruction: jal\n");
             break;
 
+        case 115:
+            printf("instruction: ecall\n");
+            break;
+
         default:
             printf("Invalid opcode.\n");
             return 1;
@@ -227,7 +286,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
 
     // idk how we terminate
     int i = 0;
-    while(i++ < 5){
+    while(i++ < 10){
         // fetch instruction
         int ins = memory_rd_w(mem, PC);
         int opcode = get_ins_field(ins, 6, 0);
