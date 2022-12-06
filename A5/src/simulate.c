@@ -284,9 +284,9 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     memset(&signals, 0, sizeof(signals));
     int PC = start_addr;
 
-    // idk how we terminate
-    int i = 0;
-    while(i++ < 10){
+    // idk how we terminate, counter for convenience, will remove
+    int ins_ctr = 0;
+    while(ins_ctr++ < 20){
         // fetch instruction
         int ins = memory_rd_w(mem, PC);
         int opcode = get_ins_field(ins, 6, 0);
@@ -295,10 +295,13 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int rs1 = get_ins_field(ins, 19, 15);
         int rs2 = get_ins_field(ins, 24, 20);
         int funct7 = get_ins_field(ins, 31, 25);
+
+        printf("Instruction %d\n", ins_ctr);
         printf("opcode = 0x%x\n", opcode);
 
         // decode instruction, set control signals
         set_signals(signals, opcode, funct3, funct7);
+        printf("\n");
 
         // set registers, compute branch address
 
