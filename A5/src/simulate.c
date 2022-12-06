@@ -37,5 +37,177 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     int funct7 = get_ins_field(ins, 31, 25);
     printf("opcode = 0x%x\n", opcode);
 
+    switch(opcode){
+        case 3:
+            switch(funct3){
+                case 0:
+                    printf("instruction: lb");
+                    break;
+                
+                case 1:
+                    printf("instruction: lh");
+                    break;
+
+                case 2:
+                    printf("instruction: lw");
+                    break;
+
+                case 4:
+                    printf("instruction: lbu");
+                    break;
+                
+                case 5:
+                    printf("instruction: lhu");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    return 1;
+            }
+            break;
+
+        case 19:
+            switch(funct3){
+                case 0:
+                    printf("instruction: addi");
+                    break;
+
+                case 1:
+                    printf("instruction: slli");
+                    break;
+
+                case 2:
+                    printf("instruction: slti");
+                    break;
+
+                case 3:
+                    printf("instruction: sltu");
+                    break;
+
+                case 4:
+                    printf("instruction: xor");
+                    break;
+
+                case 5:
+                    if(funct7 == 0){
+                        printf("instruction: srli");
+                    }else{
+                        printf("instruction: srai");
+                    }
+                    break;
+
+                case 6:
+                    printf("instruction: ori");
+                    break;
+
+                case 7:
+                    printf("instruction: andi");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    return 1;
+            }
+            break;
+        
+        case 23:
+            printf("instruction: auipc");
+        
+        case 35:
+            switch(funct3){
+                case 0:
+                    printf("instruction: sb");
+                    break;
+                case 1:
+                    printf("instruction: sh");
+                    break;
+                case 2:
+                    printf("instruction: sw");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    return 1;
+            }
+            break;
+        
+        case 51:
+            switch(funct3){
+                case 0:
+                    if (funct7 == 0){
+                        printf("instruction: add");
+                    }else{
+                        printf("instruction: sub");
+                    }
+                    break;
+                case 1:
+                    printf("instruction: sll");
+                    break;
+                case 2:
+                    printf("instruction: slt");
+                    break;
+                case 3:
+                    printf("instruction: sltu");
+                    break;
+                case 4:
+                    printf("instruction: xor");
+                    break;
+                case 5:
+                    if (funct7 == 0){
+                        printf("instruction: srl");
+                    }else{
+                        printf("instruction: sra");
+                    }
+                    break;
+                case 6:
+                    printf("instruction: or");
+                    break;
+                case 7:
+                    printf("instruction: and");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    return 1;
+            }
+            break;
+
+        case 55:
+            printf("instruction: lui");
+            break;
+
+        case 99:
+            switch(funct3){
+                case 0:
+                    printf("instruction: beq");
+                    break;
+                case 1:
+                    printf("instruction: bne");
+                    break;
+                case 4:
+                    printf("instruction: blt");
+                    break;
+                case 5:
+                    printf("instruction: bge");
+                    break;
+                case 6:
+                    printf("instruction: bltu");
+                    break;
+                default:
+                    printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
+                    return 1;
+            }
+            break;
+
+        case 103:
+            printf("instruction: jalr");
+            break;
+        
+        case 111:
+            printf("instruction: jal");
+            break;
+            
+        default:
+            printf("Invalid opcode.");
+            return 1;
+
+    }
+
     return 0;
 }
