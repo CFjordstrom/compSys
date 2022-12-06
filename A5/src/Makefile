@@ -18,3 +18,5 @@ read_exec.o: read_exec.c read_exec.h
 
 clean:
 	rm -rf *.o sim
+
+rebuild: clean sim
