@@ -1,7 +1,7 @@
 GCC=gcc -g -Wall -Wextra -pedantic -std=gnu11
 LDFLAGS=-lm
 
-sim: main.c simulate.o memory.o assembly.o
+sim: main.c simulate.o memory.o assembly.o read_exec.o
 	$(GCC) $< *.o -o $@ $(LD_FLAGS)
 
 simulate.o: simulate.c simulate.h
