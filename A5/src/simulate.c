@@ -3,6 +3,22 @@
 #include <stdio.h>
 
 // create registers as struct or array of 32 ints
+int x[32] = {0};
+
+// alu signals and muxes
+struct aluControl{
+    int branch;
+    int MemRead;
+    int MemtoReg;
+    int ALUOp;
+    int MemWrite;
+    int ALUSrc;
+    int RegWrite;
+
+    int ALUSrc_mux;
+    int MemtoReg_mux;
+    int branch_mux;
+};
 
 // get instruction -> get opcode -> depending on opcode format is R, I, S, SB or 5th whatever that is
 
@@ -26,38 +42,30 @@ int get_ins_field(int ins, int end, int start) {
     return mask & (ins >> start);
 }
 
-long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
-    int PC = start_addr;
-    int ins = memory_rd_w(mem, PC);
-    int opcode = get_ins_field(ins, 6, 0);
-    int rd = get_ins_field(ins, 11, 7);
-    int funct3 = get_ins_field(ins, 14, 12);
-    int rs1 = get_ins_field(ins, 19, 15);
-    int rs2 = get_ins_field(ins, 24, 20);
-    int funct7 = get_ins_field(ins, 31, 25);
-    printf("opcode = 0x%x\n", opcode);
-
+// sets alu control signals and mux'es based on opcode and funct fields
+// print statements purely for convenience
+void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7){
     switch(opcode){
         case 3:
             switch(funct3){
                 case 0:
-                    printf("instruction: lb");
+                    printf("instruction: lb\n");
                     break;
                 
                 case 1:
-                    printf("instruction: lh");
+                    printf("instruction: lh\n");
                     break;
 
                 case 2:
-                    printf("instruction: lw");
+                    printf("instruction: lw\n");
                     break;
 
                 case 4:
-                    printf("instruction: lbu");
+                    printf("instruction: lbu\n");
                     break;
                 
                 case 5:
-                    printf("instruction: lhu");
+                    printf("instruction: lhu\n");
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -68,39 +76,39 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         case 19:
             switch(funct3){
                 case 0:
-                    printf("instruction: addi");
+                    printf("instruction: addi\n");
                     break;
 
                 case 1:
-                    printf("instruction: slli");
+                    printf("instruction: slli\n");
                     break;
 
                 case 2:
-                    printf("instruction: slti");
+                    printf("instruction: slti\n");
                     break;
 
                 case 3:
-                    printf("instruction: sltu");
+                    printf("instruction: sltu\n");
                     break;
 
                 case 4:
-                    printf("instruction: xor");
+                    printf("instruction: xor\n");
                     break;
 
                 case 5:
                     if(funct7 == 0){
-                        printf("instruction: srli");
+                        printf("instruction: srli\n");
                     }else{
-                        printf("instruction: srai");
+                        printf("instruction: srai\n");
                     }
                     break;
 
                 case 6:
-                    printf("instruction: ori");
+                    printf("instruction: ori\n");
                     break;
 
                 case 7:
-                    printf("instruction: andi");
+                    printf("instruction: andi\n");
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -109,18 +117,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             break;
         
         case 23:
-            printf("instruction: auipc");
+            printf("instruction: auipc\n");
         
         case 35:
             switch(funct3){
                 case 0:
-                    printf("instruction: sb");
+                    printf("instruction: sb\n");
                     break;
                 case 1:
-                    printf("instruction: sh");
+                    printf("instruction: sh\n");
                     break;
                 case 2:
-                    printf("instruction: sw");
+                    printf("instruction: sw\n");
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -132,35 +140,35 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             switch(funct3){
                 case 0:
                     if (funct7 == 0){
-                        printf("instruction: add");
+                        printf("instruction: add\n");
                     }else{
-                        printf("instruction: sub");
+                        printf("instruction: sub\n");
                     }
                     break;
                 case 1:
-                    printf("instruction: sll");
+                    printf("instruction: sll\n");
                     break;
                 case 2:
-                    printf("instruction: slt");
+                    printf("instruction: slt\n");
                     break;
                 case 3:
-                    printf("instruction: sltu");
+                    printf("instruction: sltu\n");
                     break;
                 case 4:
-                    printf("instruction: xor");
+                    printf("instruction: xor\n");
                     break;
                 case 5:
                     if (funct7 == 0){
-                        printf("instruction: srl");
+                        printf("instruction: srl\n");
                     }else{
-                        printf("instruction: sra");
+                        printf("instruction: sra\n");
                     }
                     break;
                 case 6:
-                    printf("instruction: or");
+                    printf("instruction: or\n");
                     break;
                 case 7:
-                    printf("instruction: and");
+                    printf("instruction: and\n");
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -169,25 +177,26 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             break;
 
         case 55:
-            printf("instruction: lui");
+            
+            printf("instruction: lui\n");
             break;
 
         case 99:
             switch(funct3){
                 case 0:
-                    printf("instruction: beq");
+                    printf("instruction: beq\n");
                     break;
                 case 1:
-                    printf("instruction: bne");
+                    printf("instruction: bne\n");
                     break;
                 case 4:
-                    printf("instruction: blt");
+                    printf("instruction: blt\n");
                     break;
                 case 5:
-                    printf("instruction: bge");
+                    printf("instruction: bge\n");
                     break;
                 case 6:
-                    printf("instruction: bltu");
+                    printf("instruction: bltu\n");
                     break;
                 default:
                     printf("invalid funct3: 0x%x given opcode: 0x%x\n", funct3, opcode);
@@ -196,17 +205,48 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             break;
 
         case 103:
-            printf("instruction: jalr");
+            printf("instruction: jalr\n");
             break;
         
         case 111:
-            printf("instruction: jal");
+            printf("instruction: jal\n");
             break;
-            
+
         default:
-            printf("Invalid opcode.");
+            printf("Invalid opcode.\n");
             return 1;
 
+    }
+
+}
+
+long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
+    struct aluControl *signals = malloc(sizeof(struct aluControl));
+    memset(&signals, 0, sizeof(signals));
+    int PC = start_addr;
+
+    // idk how we terminate
+    int i = 0;
+    while(i++ < 5){
+        // fetch instruction
+        int ins = memory_rd_w(mem, PC);
+        int opcode = get_ins_field(ins, 6, 0);
+        int rd = get_ins_field(ins, 11, 7);
+        int funct3 = get_ins_field(ins, 14, 12);
+        int rs1 = get_ins_field(ins, 19, 15);
+        int rs2 = get_ins_field(ins, 24, 20);
+        int funct7 = get_ins_field(ins, 31, 25);
+        printf("opcode = 0x%x\n", opcode);
+
+        // decode instruction, set control signals
+        set_signals(signals, opcode, funct3, funct7);
+
+        // set registers, compute branch address
+
+        // execute ALU, execute load/store
+
+
+        PC += 4;
     }
 
     return 0;
