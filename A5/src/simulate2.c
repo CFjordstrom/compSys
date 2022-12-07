@@ -53,11 +53,24 @@ int get_type(int opcode) {
 void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, int MemWrite, int ALUSrc, int RegWrite) {
     switch(type) {
         case R:
+            Branch = 0;
+            MemRead = 0;
+            MemToReg = 0;
+            ALUOp0 = 0;
             ALUOp1 = 1;
+            MemWrite = 0;
+            ALUSrc = 0;
             RegWrite = 1;
             break;
 
         case I:
+            Branch = 0;
+            MemRead = 1;
+            MemToReg = 1;
+            ALUOp0 = 0;
+            ALUSrc = 1;
+            MemWrite = 0;
+            
             break;
 
         case S:
@@ -82,7 +95,56 @@ void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, in
     }
 }
 
+void set_imm_get(int type, int insn){
+
+    return 0;
+}
+
+void set_ALU_ctrl(int ALUOp0, int ALUOp1, int insn, int funct3, int ALU_control){
+    if(ALUOp0 == 0 && ALUOp1 == 0){
+        ALU_control = 2;
+    }
+    else if(ALUOp0 == 0 && ALUOp1 == 1){
+        ALU_control = 6;
+    }
+    else if (ALUOp0 == 1 && ALUOp1 == 0)
+    {
+        int funct7_30 = get_insn_field(insn, 30, 30);
+        if (funct7_30 == 0){
+            switch (funct3)
+            {
+            case 0:
+                ALU_control = 2;
+                break;
+            case 7:
+                ALU_control = 0;
+                break;
+            case 6:
+                ALU_control = 1;
+                break;
+            default:
+                printf("Invalid ALUOp.");
+                break;
+            }
+        }else{
+            ALU_control = 6;
+        }
+    }
+    return 0;
+}
+
+void set_pc(int Branch, int ALU, int ImmGen, int PC){
+    if(Branch == 1 && ALU == 0){
+        PC = ImmGen + PC;
+    }else{
+        PC += 4;
+    }
+}
+
+
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
+
+    // fetch instruction
     int PC = start_addr;
     int insn = memory_rd_w(mem, PC);
     const char* insn_a = assembly_get(as, PC);
@@ -105,6 +167,29 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     int MemWrite = 0;
     int ALUSrc = 0;
     int RegWrite = 0;
+
+    int ImmGen = 0;
+    int ALU_control = 0;
+    int ALU = 0;
+
+    // set PC
+    set_pc(Branch, ALU, ImmGen, PC);
+
+    // decode instruction, set signals
     set_signals(type, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, MemWrite, ALUSrc, RegWrite);
+
+    // generate immediates
+    set_imm_get(type, insn);
+
+    // set ALU control
+    set_ALU_ctrl(ALUOp0, ALUOp1, insn, funct3, ALU_control);
+    
+    // execute ALU
+
+    // memory access
+
+    // register write
+
+
     return 0;
 }
