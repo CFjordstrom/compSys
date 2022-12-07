@@ -46,7 +46,7 @@ int get_ins_field(int ins, int end, int start) {
 // actually also sets registers for now
 // print statements purely for convenience
 
-void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7, int ins, int rd, int rs1, int rs2){
+int set_signals(struct aluControl signals,  int opcode, int funct3, int funct7, int ins, int rd, int rs1, int rs2){
     int immediate = 0;
     int shamt;
     switch(opcode){
@@ -144,6 +144,7 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
         
         case 23:
             printf("instruction: auipc\n");
+            break;
         
         case 35:
             switch(funct3){
@@ -305,14 +306,12 @@ void set_signals(struct aluControl *signals,  int opcode, int funct3, int funct7
             return 1;
 
     }
-
+    return 0;
 }
 
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
-    struct aluControl *signals = malloc(sizeof(struct aluControl));
-    memset(&signals, 0, sizeof(signals));
+    struct aluControl signals;
     int PC = start_addr;
-
 
     // idk how we terminate, counter for convenience, will remove
     int ins_ctr = 0;
