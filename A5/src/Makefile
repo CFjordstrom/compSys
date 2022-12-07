@@ -17,6 +17,6 @@ read_exec.o: read_exec.c read_exec.h
 	$(GCC) -c $< -o $@
 
 clean:
-	rm -rf *.o sim
+	rm -rf *.o sim log
 
 rebuild: clean sim
