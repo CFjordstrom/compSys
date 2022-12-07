@@ -6,6 +6,13 @@
 // create registers as struct or array of 32 ints
 int x[32];
 
+enum ALUOp {
+    ALU_ADD = 0,
+    ALU_SUB = 1,
+    ALU_AND = 2,
+    ALU_OR = 3,
+};
+
 // returns base to the power of exponent
 int power(int base, int exponent) {
     int product = 1;
@@ -50,7 +57,7 @@ int get_type(int opcode) {
     }
 }
 
-void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, int MemWrite, int ALUSrc, int RegWrite) {
+void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, enum ALUOp ALUOp, int MemWrite, int ALUSrc, int RegWrite) {
     switch(type) {
         case R:
             Branch = 0;
@@ -58,6 +65,7 @@ void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, in
             MemToReg = 0;
             ALUOp0 = 0;
             ALUOp1 = 1;
+            ALUOp = ALU_ADD;
             MemWrite = 0;
             ALUSrc = 0;
             RegWrite = 1;
@@ -70,12 +78,20 @@ void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, in
             ALUOp0 = 0;
             ALUSrc = 1;
             MemWrite = 0;
-            
+            ALUSrc = 1;
+            RegWrite = 1;
             break;
 
         case S:
+            Branch = 0;
+            MemRead = 0;
+            MemToReg = 0;
+            ALUOp0 = 0;
+            ALUSrc = 1;
+            ALUOp = ALU_SUB;
             MemWrite = 1;
             ALUSrc = 1;
+            RegWrite = 0;
             break;
 
         case B:
@@ -95,11 +111,34 @@ void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, in
     }
 }
 
-void set_imm_get(int type, int insn){
+void set_imm_get(int type, int insn, int opcode, int rd, int rs1, int rs2, int funct3, int funct7, int ImmGen){
+    switch (type)
+    {
+    case R:
+        break;
+    
+    case I:
+        ImmGen = get_insn_field(insn, 31, 25);
+        break;
 
-    return 0;
+    case S:
+        ImmGen = (funct7 << 5) | rd;
+        break;
+    case B:
+        break;
+    case U:
+
+        break;
+    case J:
+
+        break;
+
+    default:
+        break;
+    }
 }
 
+// needs refactoring
 void set_ALU_ctrl(int ALUOp0, int ALUOp1, int insn, int funct3, int ALU_control){
     if(ALUOp0 == 0 && ALUOp1 == 0){
         ALU_control = 2;
@@ -164,6 +203,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     int MemToReg = 0;
     int ALUOp0 = 0;
     int ALUOp1 = 0;
+    enum ALUOp ALUOp;
     int MemWrite = 0;
     int ALUSrc = 0;
     int RegWrite = 0;
@@ -176,10 +216,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     set_pc(Branch, ALU, ImmGen, PC);
 
     // decode instruction, set signals
-    set_signals(type, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, MemWrite, ALUSrc, RegWrite);
+    set_signals(type, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, ALUOp, MemWrite, ALUSrc, RegWrite);
 
     // generate immediates
-    set_imm_get(type, insn);
+    set_imm_get(type, insn, opcode, rd, rs1, rs2, funct3, funct7, ImmGen);
 
     // set ALU control
     set_ALU_ctrl(ALUOp0, ALUOp1, insn, funct3, ALU_control);
