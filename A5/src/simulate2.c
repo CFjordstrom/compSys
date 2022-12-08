@@ -36,8 +36,14 @@ int get_type(int opcode) {
         case 0x33:
             return R;
 
-        case (0x3 || 0x13 || 0x67):
+        case 0x3:
+            return L;
+        
+        case 0x13:
             return I;
+
+        case 0x67:
+            return A;
 
         case 0x23:
             return S;
@@ -60,38 +66,38 @@ int get_type(int opcode) {
 void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, enum ALUOp ALUOp, int MemWrite, int ALUSrc, int RegWrite) {
     switch(type) {
         case R:
-            Branch = 0;
-            MemRead = 0;
-            MemToReg = 0;
-            ALUOp0 = 0;
             ALUOp1 = 1;
             ALUOp = ALU_ADD;
-            MemWrite = 0;
-            ALUSrc = 0;
             RegWrite = 1;
             break;
 
-        case I:
-            Branch = 0;
+        case L:
+            ALUOp1 = 1;
+            ALUOp = ALU_ADD;
+            RegWrite = 1;
+            break;
+
+       case I:
             MemRead = 1;
             MemToReg = 1;
-            ALUOp0 = 0;
             ALUSrc = 1;
-            MemWrite = 0;
+            ALUSrc = 1;
+            RegWrite = 1;
+            break;
+
+        case A:
+            MemRead = 1;
+            MemToReg = 1;
+            ALUSrc = 1;
             ALUSrc = 1;
             RegWrite = 1;
             break;
 
         case S:
-            Branch = 0;
-            MemRead = 0;
-            MemToReg = 0;
-            ALUOp0 = 0;
             ALUSrc = 1;
             ALUOp = ALU_SUB;
             MemWrite = 1;
             ALUSrc = 1;
-            RegWrite = 0;
             break;
 
         case B:

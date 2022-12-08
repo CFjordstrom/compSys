@@ -6,11 +6,13 @@
 #include <stdio.h>
 
 #define R 1
-#define I 2
-#define S 3
-#define B 4
-#define U 5
-#define J 6
+#define L 2
+#define I 3
+#define A 4
+#define S 5
+#define B 6
+#define U 7
+#define J 8
 
 // Simuler RISC-V program i givet lager og fra given start adresse
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file);
