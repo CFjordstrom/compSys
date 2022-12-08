@@ -4,7 +4,7 @@ LDFLAGS=-lm
 sim: main.c simulate.o memory.o assembly.o read_exec.o
 	$(GCC) $< *.o -o $@ $(LD_FLAGS)
 
-simulate.o: simulate.c simulate.h
+simulate.o: simulate2.c simulate.h
 	$(GCC) -c $< -o $@
 
 memory.o: memory.c memory.h

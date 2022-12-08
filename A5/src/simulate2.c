@@ -31,7 +31,7 @@ int get_insn_field(int insn, int end, int start) {
     return mask & (insn >> start);
 }
 
-int get_type(int opcode) {
+/*int get_type(int opcode) {
     switch(opcode) {
         case 0x33:
             return R;
@@ -43,7 +43,7 @@ int get_type(int opcode) {
             return I;
 
         case 0x67:
-            return A;
+            return JALR;
 
         case 0x23:
             return S;
@@ -52,52 +52,34 @@ int get_type(int opcode) {
             return B;
 
         case 0x37:
-            return U;
+            return LUI;
         
         case 0x6f:
             return J;
+        
+        case 0x73:
+            return ECALL;
 
         default:
             printf("Malformed opcode\n");
             exit(1);
     }
-}
+}*/
 
-void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, enum ALUOp ALUOp, int MemWrite, int ALUSrc, int RegWrite) {
-    switch(type) {
-        case R:
-            ALUOp1 = 1;
-            ALUOp = ALU_ADD;
+void set_signals(int opcode, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, enum ALUOp ALUOp, int MemWrite, int ALUSrc, int RegWrite) {
+    switch(opcode) {
+        case LUI:
             RegWrite = 1;
+            ALUSrc = 1;
+            break;
+        
+        case AUIPC:
             break;
 
-        case L:
-            ALUOp1 = 1;
-            ALUOp = ALU_ADD;
-            RegWrite = 1;
+        case JAL:
             break;
 
-       case I:
-            MemRead = 1;
-            MemToReg = 1;
-            ALUSrc = 1;
-            ALUSrc = 1;
-            RegWrite = 1;
-            break;
-
-        case A:
-            MemRead = 1;
-            MemToReg = 1;
-            ALUSrc = 1;
-            ALUSrc = 1;
-            RegWrite = 1;
-            break;
-
-        case S:
-            ALUSrc = 1;
-            ALUOp = ALU_SUB;
-            MemWrite = 1;
-            ALUSrc = 1;
+        case JALR:
             break;
 
         case B:
@@ -105,77 +87,106 @@ void set_signals(int type, int Branch, int MemRead, int MemToReg, int ALUOp0, in
             ALUOp0 = 1;
             break;
 
-        case U:
+        case L:
+            MemRead = 1;
+            ALUSrc = 1;
+            MemToReg = 1;
+            RegWrite = 1;
             break;
 
-        case J:
+        case S:
+            ALUSrc = 1;
+            //ALUOp = ALU_SUB;
+            MemWrite = 1;
+            break;
+
+        case I:
+            ALUSrc = 1;
+            MemRead = 1;
+            MemToReg = 1;
+            RegWrite = 1;
+            break;
+        
+        case R:
+            ALUOp1 = 1;
+            //ALUOp = ALU_ADD;
+            RegWrite = 1;
+            break;
+
+        case ECALL:
             break;
 
         default:
             printf("Malformed signal\n");
-            exit(1);
     }
 }
 
-void set_imm_get(int type, int insn, int opcode, int rd, int rs1, int rs2, int funct3, int funct7, int ImmGen){
-    switch (type)
-    {
-    case R:
-        break;
-    
-    case I:
-        ImmGen = get_insn_field(insn, 31, 25);
-        break;
+void set_imm_get(int insn, int opcode, int rd, int rs1, int rs2, int funct3, int funct7, int ImmGen){
+    switch (opcode) {
+        case LUI:
+            break;
+        
+        case AUIPC:
+            break;
 
-    case S:
-        ImmGen = (funct7 << 5) | rd;
-        break;
-    case B:
-        break;
-    case U:
+        case JAL:
+            break;
 
-        break;
-    case J:
+        case JALR:
+            break;
 
-        break;
+        case B:
+            break;
 
-    default:
-        break;
+        case L:
+            break;
+
+        case S:
+            ImmGen = (funct7 << 5) | rd;
+            break;
+
+        case I:
+            ImmGen = get_insn_field(insn, 31, 25);
+            break;
+        
+        case R:
+            break;
+
+        case ECALL:
+            break;
+
+        default:
+            break;
     }
 }
 
 // needs refactoring
-void set_ALU_ctrl(int ALUOp0, int ALUOp1, int insn, int funct3, int ALU_control){
+int get_ALU_ctrl(int ALUOp0, int ALUOp1, int bit30, int funct3){
     if(ALUOp0 == 0 && ALUOp1 == 0){
-        ALU_control = 2;
+        return ADD;
     }
     else if(ALUOp0 == 0 && ALUOp1 == 1){
-        ALU_control = 6;
+        return SUB;
     }
     else if (ALUOp0 == 1 && ALUOp1 == 0)
     {
-        int funct7_30 = get_insn_field(insn, 30, 30);
-        if (funct7_30 == 0){
+        if (bit30 == 0){
             switch (funct3)
             {
-            case 0:
-                ALU_control = 2;
-                break;
-            case 7:
-                ALU_control = 0;
-                break;
-            case 6:
-                ALU_control = 1;
-                break;
+            case 0x0:
+                return ADD;
+
+            case 0x6:
+                return OR;
+
             default:
-                printf("Invalid ALUOp.");
-                break;
+                return AND;
             }
-        }else{
-            ALU_control = 6;
+        }
+        else {
+            return SUB;
         }
     }
-    return 0;
 }
 
 void set_pc(int Branch, int ALU, int ImmGen, int PC){
@@ -186,24 +197,21 @@ void set_pc(int Branch, int ALU, int ImmGen, int PC){
     }
 }
 
-
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
 
     // fetch instruction
     int PC = start_addr;
     int insn = memory_rd_w(mem, PC);
-    const char* insn_a = assembly_get(as, PC);
-    printf("instruction = %s\n", insn_a);
     int opcode = get_insn_field(insn, 6, 0);
     int rd = get_insn_field(insn, 11, 7);
     int funct3 = get_insn_field(insn, 14, 12);
     int rs1 = get_insn_field(insn, 19, 15);
     int rs2 = get_insn_field(insn, 24, 20);
     int funct7 = get_insn_field(insn, 31, 25);
+    const char* insn_a = assembly_get(as, PC);
+    printf("instruction = %s\n", insn_a);
     printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = 0x%x\nrs2 = 0x%x\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
 
-    int type = get_type(opcode);
-    printf("type = %i\n", type);
     int Branch = 0;
     int MemRead = 0;
     int MemToReg = 0;
@@ -222,13 +230,13 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     set_pc(Branch, ALU, ImmGen, PC);
 
     // decode instruction, set signals
-    set_signals(type, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, ALUOp, MemWrite, ALUSrc, RegWrite);
+    set_signals(opcode, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, ALUOp, MemWrite, ALUSrc, RegWrite);
 
     // generate immediates
-    set_imm_get(type, insn, opcode, rd, rs1, rs2, funct3, funct7, ImmGen);
+    set_imm_get(insn, opcode, rd, rs1, rs2, funct3, funct7, ImmGen);
 
     // set ALU control
-    set_ALU_ctrl(ALUOp0, ALUOp1, insn, funct3, ALU_control);
+    ALU_control = get_ALU_ctrl(ALUOp0, ALUOp1, get_insn_field(insn, 30, 30), funct3);
     
     // execute ALU
 
