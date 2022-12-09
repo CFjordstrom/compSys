@@ -66,6 +66,7 @@ int get_insn_field(int insn, int end, int start) {
     }
 }*/
 
+// ALUOp 00 = add, ALUOp 01 = sub, ALUOp 10 = funct
 void set_signals(int opcode, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, enum ALUOp ALUOp, int MemWrite, int ALUSrc, int RegWrite) {
     switch(opcode) {
         case LUI:
@@ -77,6 +78,7 @@ void set_signals(int opcode, int Branch, int MemRead, int MemToReg, int ALUOp0, 
             break;
 
         case JAL:
+            
             break;
 
         case JALR:

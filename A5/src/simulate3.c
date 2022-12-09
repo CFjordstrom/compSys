@@ -44,87 +44,59 @@ int combine_bit30_func3(int insn){
     return funct3 | bit30;
 }
 
-/*int get_type(int opcode) {
-    switch(opcode) {
-        case 0x33:
-            return R;
-
-        case 0x3:
-            return L;
-        
-        case 0x13:
-            return I;
-
-        case 0x67:
-            return JALR;
-
-        case 0x23:
-            return S;
-
-        case 0x63:
-            return B;
-
-        case 0x37:
-            return LUI;
-        
-        case 0x6f:
-            return J;
-        
-        case 0x73:
-            return ECALL;
-
-        default:
-            printf("Malformed opcode\n");
-            exit(1);
-    }
-}*/
-
-void set_signals(int opcode, int Branch, int MemRead, int MemToReg, int ALUOp0, int ALUOp1, int MemWrite, int ALUSrc, int RegWrite) {
+// ALUOp 00 = add, ALUOp 01 = sub, ALUOp 10 = funct
+void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUOp0, int* ALUOp1, int* MemWrite, int* ALUSrc, int* RegWrite) {
     switch(opcode) {
         case LUI:
-            RegWrite = 1;
-            ALUSrc = 1;
+            *RegWrite = 1;
+            *ALUSrc = 1;
             break;
         
         case AUIPC:
+            *ALUSrc = 1;
+            *RegWrite = 1;
             break;
 
         case JAL:
+            *Branch = 1;
+            *RegWrite = 1;
             break;
 
         case JALR:
+            *Branch = 1;
+            *RegWrite = 1;
             break;
 
         case B:
-            Branch = 1;
-            ALUOp0 = 1;
+            *Branch = 1;
+            *ALUOp1 = 1;
             break;
 
         case L:
-            MemRead = 1;
-            ALUSrc = 1;
-            MemToReg = 1;
-            RegWrite = 1;
+            *MemRead = 1;
+            *ALUSrc = 1;
+            *MemToReg = 1;
+            *RegWrite = 1;
             break;
 
         case S:
-            ALUSrc = 1;
-            MemWrite = 1;
+            *ALUSrc = 1;
+            *MemWrite = 1;
             break;
 
         case I:
-            ALUSrc = 1;
-            MemRead = 1;
-            MemToReg = 1;
-            RegWrite = 1;
+            *ALUSrc = 1;
+            *ALUOp1 = 1;
+            *RegWrite = 1;
             break;
         
         case R:
-            ALUOp1 = 1;
-            RegWrite = 1;
+            *ALUOp1 = 1;
+            *RegWrite = 1;
             break;
 
         case ECALL:
+            // hard code ecall function
             break;
 
         default:
@@ -132,72 +104,91 @@ void set_signals(int opcode, int Branch, int MemRead, int MemToReg, int ALUOp0, 
     }
 }
 
-void set_imm_get(int insn, int opcode, int rd, int rs1, int rs2, int funct3, int funct7, int ImmGen){
+int get_imm_gen(int insn, int opcode){
     switch (opcode) {
         case LUI:
-            break;
+            return get_insn_field(insn, 31, 12);
         
         case AUIPC:
-            break;
+            return get_insn_field(insn, 31, 12);
 
         case JAL:
-            break;
+            return (get_insn_field(insn, 31, 31) << 19) | get_insn_field(insn, 30, 21) | (get_insn_field(insn, 20, 20) << 10) | (get_insn_field(insn, 19, 12) << 11);
 
         case JALR:
-            break;
+            return get_insn_field(insn, 31, 20);
 
         case B:
-            break;
+            return (get_insn_field(insn, 31, 31) << 11) | (get_insn_field(insn, 7, 7) << 10) | (get_insn_field(insn, 30, 25) << 4) | get_insn_field(insn, 11, 8);
 
         case L:
-            break;
+            return get_insn_field(insn, 31, 20);
 
         case S:
-            ImmGen = (funct7 << 5) | rd;
-            break;
+            return get_insn_field(insn, 31, 20);
 
         case I:
-            ImmGen = get_insn_field(insn, 31, 25);
-            break;
-        
-        case R:
-            break;
-
-        case ECALL:
-            break;
+            return get_insn_field(insn, 31, 25);
 
         default:
-            break;
+            printf("ImmGen error");
+            return 1;
     }
+    return -1;
 }
 
 // gets the output of the ALU control based on the ALUOp and the funct3 and funct7 fields
-int get_ALU_ctrl(int ALUOp0, int ALUOp1, int bit30, int funct3){
-    if(ALUOp0 == 0 && ALUOp1 == 0){
-        return ADD;
+int get_ALU_ctrl(int ALUOp1, int ALUOp0, int bit30, int funct3){
+    if(ALUOp1 == 0 && ALUOp0 == 0){
+        return ALU_ADD;
     }
-    else if(ALUOp0 == 0 && ALUOp1 == 1){
-        return SUB;
+    else if(ALUOp1 == 0 && ALUOp0 == 1){
+        return ALU_SUB;
     }
-    else if (ALUOp0 == 1 && ALUOp1 == 0)
+    else if (ALUOp1 == 1 && ALUOp0 == 0)
     {
         if (bit30 == 0){
             switch (funct3)
             {
             case 0x0:
-                return ADD;
+                return ALU_ADD;
+
+            case 0x1:
+                return ALU_SLL;
+
+            case 0x2:
+                return ALU_SLT;
+
+            case 0x3:
+                return ALU_SLTU;
+
+            case 0x4:
+                return ALU_XOR;
+            
+            case 0x5:
+                return ALU_SRL;
 
             case 0x6:
-                return OR;
+                return ALU_OR;
+
+            case 0x7:
+                return ALU_AND;
 
             default:
-                return AND;
+                return 0;
             }
         }
         else {
-            return SUB;
+            switch (funct3) {
+                case 0x0:
+                    return ALU_SUB;
+
+                case 0x5:
+                    return ALU_SRA;
+            }
         }
     }
+    return -1;
 }
 
 void set_pc(int Branch, int ALU, int ImmGen, int PC){
@@ -211,47 +202,54 @@ void set_pc(int Branch, int ALU, int ImmGen, int PC){
 int ALU_execute(int input1, int input2, enum ALU_control op){
     switch (op)
     {
-    case ALU_ADD:
-        return input1 + input2;
-        break;
+        case ALU_ADD:
+            return input1 + input2;
+            break;
 
-    case ALU_SUB:
-        return input1 - input2;
-        break;
+        case ALU_SUB:
+            return input1 - input2;
+            break;
 
-    case ALU_OR:
-        return input1 | input2;
-        break;
-    
-    case ALU_AND:
-        return input1 & input2;
-        break;
+        case ALU_OR:
+            return input1 | input2;
+            break;
+        
+        case ALU_AND:
+            return input1 & input2;
+            break;
 
-    case ALU_XOR:
-        return input1 ^ input2;
-        break;
+        case ALU_XOR:
+            return input1 ^ input2;
+            break;
 
-    case ALU_SLL:
-        return input1 << input2;
-        break;
+        case ALU_SLL:
+            return input1 << input2;
+            break;
 
-    case ALU_SLT:
-        return input1 < input2 ? 1 : 0;
-        break;
-    
-    case ALU_SRL:
-        return input1 >> input2;
-        break;
+        case ALU_SLT:
+            return input1 < input2 ? 1 : 0;
+            break;
+        
+        case ALU_SRL:
+            return input1 >> input2;
+            break;
 
-    case ALU_SRA:
-        break;
+        case ALU_SRA:
+            // check if negative -> extend 1
+            if (input2 < 0) {
+                
+            }
+            return input1 >> input2;
+            break;
 
-    case ALU_SLTU:
-        break;
+        case ALU_SLTU:
+            (unsigned int)input1 < (unsigned int)input2 ? 1 : 0;
+            break;
 
-    default:
-        break;
+        default:
+            break;
     }
+    return 0;
 }
 
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
@@ -274,33 +272,49 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     int MemToReg = 0;
     int ALUOp0 = 0;
     int ALUOp1 = 0;
-    enum ALU_control ALUOp;
     int MemWrite = 0;
     int ALUSrc = 0;
     int RegWrite = 0;
 
-    int ImmGen = 0;
-    int ALU_control = 0;
-    int ALU = 0;
-
-    // set PC
-    set_pc(Branch, ALU, ImmGen, PC);
-
     // decode instruction, set signals
-    set_signals(opcode, Branch, MemRead, MemToReg, ALUOp0, ALUOp1, MemWrite, ALUSrc, RegWrite);
+    set_signals(opcode, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite);
 
+    printf("RegWrite = %i\nALUSrc = %i\n", RegWrite, ALUSrc);
     // generate immediates
-    set_imm_get(insn, opcode, rd, rs1, rs2, funct3, funct7, ImmGen);
+    int ImmGen = get_imm_gen(insn, opcode);
 
     // set ALU control
-    ALU_control = get_ALU_ctrl(ALUOp0, ALUOp1, get_insn_field(insn, 30, 30), funct3);
+    int ALU_control = get_ALU_ctrl(ALUOp0, ALUOp1, get_insn_field(insn, 30, 30), funct3);
     
     // execute ALU
+    int ALU_result;
+    if (ALUSrc) {
+        ALU_result = ALU_execute(rs1, ImmGen, ALU_control);
+    }
+    else {
+        ALU_result = ALU_execute(rs1, rs2, ALU_control);
+    }
 
-    // memory access
+    // data memory
+    int address = ALU_result;
+    int write_data;
+    if (MemToReg) {
+        write_data = memory_rd_w(mem, address);
+    }
+    else {
+        write_data = ALU_result;
+    }
 
-    // register write
+    if (MemWrite) {
+        memory_wr_w(mem, address, write_data);
+    }
 
+    if (RegWrite) {
+        x[rd] = write_data;
+    }
+
+    // if branch set PC
+    set_pc(Branch, ALU_result, ImmGen, PC);
 
     return 0;
 }
