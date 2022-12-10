@@ -207,7 +207,7 @@ int ALU_control(int opcode, int ALUOp1, int ALUOp0, int funct7, int funct3){
                         return ALU_REM;
                 }
             }
-            else if (bit30){
+            else if (bit30){ // else if R with bit30 set check funct3
                 switch (funct3) {
                     case 0x0:
                         return ALU_SUB;
@@ -216,7 +216,7 @@ int ALU_control(int opcode, int ALUOp1, int ALUOp0, int funct7, int funct3){
                         return ALU_SRA;
                 }
             }
-            else {
+            else {  // else R with bit 30 not set check funct3
                 switch (funct3) {
                     case 0x0:
                         return ALU_ADD;
@@ -249,14 +249,6 @@ int ALU_control(int opcode, int ALUOp1, int ALUOp0, int funct7, int funct3){
         }
     }
     return -1;
-}
-
-void set_pc(int Branch, int ALU, int ImmGen, int PC){
-    if(Branch == 1 && ALU == 0){
-        PC = ImmGen + PC;
-    }else{
-        PC += 4;
-    }
 }
 
 int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
@@ -337,10 +329,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     // decode instruction, set signals
     set_signals(opcode, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite);
 
-    // generate immediates
+    // generate immediate
     int ImmGen = get_imm_gen(insn, opcode);
 
-    // set ALU control
+    // get ALU action depending on control signals and instruction
     int ALU_action = ALU_control(opcode, ALUOp0, ALUOp1, funct7, funct3);
     
     // execute ALU
@@ -355,25 +347,35 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     // data memory
     int address = ALU_result;
     int write_data;
+
+    // if MemToReg is set write_data is read from memory
     if (MemToReg) {
         write_data = memory_rd_w(mem, address);
         printf("write data = %i\n", write_data);
     }
-    else {
+    else { // if MemToReg is not set write_data is ALU result
         write_data = ALU_result;
         printf("write data = %i\n", write_data);
     }
 
+    // if memwrite is set write result to memory
     if (MemWrite) {
         memory_wr_w(mem, address, write_data);
     }
 
+    // if RegWrite is set write result to register
     if (RegWrite) {
         x[rd] = write_data;
         printf("x[%i] = %i", rd, write_data);
     }
-    // if branch set PC
-    set_pc(Branch, ALU_result, ImmGen, PC);
 
+    // update PC depending on branch and ALU result
+    if (Branch == 1 && ALU_result == 0) {
+        PC += ImmGen;
+    }
+    else {
+        PC += 4;
+    }
+    
     return 0;
 }
