@@ -14,7 +14,7 @@
 #define L 0x3
 #define S 0x23
 #define I 0x13
-#define R 0x33
+#define RM 0x33
 #define ECALL 0x73
 
 // types of ALU control actions
