@@ -60,6 +60,12 @@ int get_insn_field(int insn, int end, int start) {
     return mask & (insn >> start);
 }
 
+int sign_extend(int num) {
+    int sign = ((num & 0x1FFFFF) | (num & 0x100000) ? 0xFFE00000 : 0);
+
+    return (sign | num);
+}
+
 // ALUOp 00 = add, ALUOp 01 = sub, ALUOp 10 = funct
 void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUOp0, int* ALUOp1, int* MemWrite, int* ALUSrc, int* RegWrite) {
     switch(opcode) {
@@ -74,6 +80,7 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
             break;
 
         case JAL:
+            *ALUSrc = 1;
             *Branch = 1;
             *RegWrite = 1;
             break;
@@ -121,15 +128,17 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
 
 // some immediates need first bit set to 30
 int get_imm_gen(int insn, int opcode){
+    int imm;
     switch (opcode) {
         case LUI:
-            return get_insn_field(insn, 31, 12) << 12;
+            return get_insn_field(insn, 31, 12);
         
         case AUIPC:
-            return get_insn_field(insn, 31, 12) << 12;
+            return get_insn_field(insn, 31, 12);
 
         case JAL:
-            return ((get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12)) << 12;
+            imm = (get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12);
+            return sign_extend(imm);
 
         case JALR:
             return get_insn_field(insn, 31, 20);
@@ -332,7 +341,7 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
     int looping = 0;
     int PC = start_addr;
-    while (looping < 20) {
+    while (looping < 2) {
 
         // fetch instruction
         int insn = memory_rd_w(mem, PC);
@@ -370,6 +379,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
 
         // generate immediate
         int ImmGen = get_imm_gen(insn, opcode);
+        printf("ImmGen = %i\n", ImmGen);
 
         // get ALU action depending on control signals and instruction
         int ALU_action = ALU_control(opcode, ALUOp0, ALUOp1, funct7, funct3);
@@ -385,6 +395,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
 
         // data memory
         int address = ALU_result;
+        printf("ALU_result = 0x%x\n", ALU_result);
         int write_data;
 
         // if MemToReg is set write_data is read from memory
@@ -395,6 +406,15 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         else { // if MemToReg is not set write_data is ALU result
             write_data = ALU_result;
             printf("write data = %i\n", write_data);
+        }
+
+        if (opcode == JAL) {
+            printf("JAL\n");
+            printf("PC = 0x%x\n", PC);
+            PC += ALU_result;
+            printf("PC = 0x%x\n", PC);
+            write_data = PC;
+            printf("write_data = 0x%x\n", write_data);
         }
 
         // if memwrite is set write result to memory
@@ -408,10 +428,14 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             if (rd == 0) {
                 x[rd] = 0;
             }
-            printf("x[%i] = %i\n", rd, write_data);
+            printf("x[%i] = 0x%x\n", rd, write_data);
         }
         printf("\n");
+        
         // update PC depending on branch and ALU result
+        if (opcode == JAL) {
+            // PC = 
+        }
         if (Branch == 1 && ALU_result == 0) {
             PC = ImmGen;
         }
