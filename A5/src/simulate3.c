@@ -81,7 +81,6 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
 
         case JAL:
             *ALUSrc = 1;
-            *Branch = 1;
             *RegWrite = 1;
             break;
 
@@ -341,8 +340,8 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
     int looping = 0;
     int PC = start_addr;
-    while (looping < 2) {
-
+    while (looping < 3) {
+        printf("PC = 0x%x\n", PC);
         // fetch instruction
         int insn = memory_rd_w(mem, PC);
         int opcode = get_insn_field(insn, 6, 0);
@@ -353,9 +352,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int funct7 = get_insn_field(insn, 31, 25);
         const char* insn_a = assembly_get(as, PC);
         printf("instruction = %s\n", insn_a);
-        //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = 0x%x\nrs2 = 0x%x\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
-
-        PC += 4;
+        //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = %i\nrs2 = %i\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
 
         if(opcode == ECALL){
             if(ecall(x) == -1){
@@ -387,7 +384,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         // execute ALU
         int ALU_result;
         if (ALUSrc) {
-            ALU_result = ALU_execute(rs1, ImmGen, ALU_action);
+            if (opcode == JAL) {
+                ALU_result = ALU_execute(PC, ImmGen, ALU_action);
+            }
+            else {
+                ALU_result = ALU_execute(rs1, ImmGen, ALU_action);
+            }
         }
         else {
             ALU_result = ALU_execute(rs1, rs2, ALU_action);
@@ -399,6 +401,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int write_data;
 
         // if MemToReg is set write_data is read from memory
+        // TODO add support for byte, halfword etc.
         if (MemToReg) {
             write_data = memory_rd_w(mem, address);
             printf("write data = %i\n", write_data);
@@ -408,16 +411,8 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             printf("write data = %i\n", write_data);
         }
 
-        if (opcode == JAL) {
-            printf("JAL\n");
-            printf("PC = 0x%x\n", PC);
-            PC += ALU_result;
-            printf("PC = 0x%x\n", PC);
-            write_data = PC;
-            printf("write_data = 0x%x\n", write_data);
-        }
-
         // if memwrite is set write result to memory
+        // TODO add support for byte, halfword etc.
         if (MemWrite) {
             memory_wr_w(mem, address, write_data);
         }
@@ -434,10 +429,13 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         
         // update PC depending on branch and ALU result
         if (opcode == JAL) {
-            // PC = 
+            PC = write_data - 4;
         }
         if (Branch == 1 && ALU_result == 0) {
             PC = ImmGen;
+        }
+        else {
+            PC += 4;
         }
         looping++;
     }
