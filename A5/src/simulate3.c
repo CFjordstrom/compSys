@@ -38,15 +38,16 @@ int power(int base, int exponent) {
     }
     return product;
 }
+
 int ecall(int* registers){
     int syscall = registers[7];
     if(syscall == (3 || 93)){
         return -1;
     }
     else if(syscall == 1){
-        *(registers + 7) = getchar();
+        registers[7] = getchar();
     } else if(syscall == 2){
-        putchar(*(registers + 6));
+        putchar(registers[6]);
     }
     return 0;
 }
@@ -57,12 +58,6 @@ int get_insn_field(int insn, int end, int start) {
     int length = end-start+1;
     int mask = power(2, length)-1;
     return mask & (insn >> start);
-}
-
-int combine_bit30_func3(int insn){
-    int funct3 = get_insn_field(insn, 14, 12);
-    int bit30 = get_insn_field(insn, 30, 30);
-    return funct3 | bit30;
 }
 
 // ALUOp 00 = add, ALUOp 01 = sub, ALUOp 10 = funct
@@ -117,7 +112,6 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
             break;
 
         case ECALL:
-            // hard code ecall function
             break;
 
         default:
@@ -125,16 +119,17 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
     }
 }
 
+// some immediates need first bit set to 30
 int get_imm_gen(int insn, int opcode){
     switch (opcode) {
         case LUI:
-            return get_insn_field(insn, 31, 12);
+            return get_insn_field(insn, 31, 12) << 12;
         
         case AUIPC:
-            return get_insn_field(insn, 31, 12);
+            return get_insn_field(insn, 31, 12) << 12;
 
         case JAL:
-            return (get_insn_field(insn, 31, 31) << 19) | get_insn_field(insn, 30, 21) | (get_insn_field(insn, 20, 20) << 10) | (get_insn_field(insn, 19, 12) << 11);
+            return ((get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12)) << 12;
 
         case JALR:
             return get_insn_field(insn, 31, 20);
@@ -152,8 +147,8 @@ int get_imm_gen(int insn, int opcode){
             return get_insn_field(insn, 31, 25);
 
         default:
-            printf("ImmGen error");
-            return -11;
+            printf("ImmGen error\n");
+            return -1;
     }
     return -1;
 }
@@ -335,87 +330,92 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
 }
 
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
-
-    // fetch instruction
+    int looping = 0;
     int PC = start_addr;
-    int insn = memory_rd_w(mem, PC);
-    int opcode = get_insn_field(insn, 6, 0);
-    int rd = get_insn_field(insn, 11, 7);
-    int funct3 = get_insn_field(insn, 14, 12);
-    int rs1 = get_insn_field(insn, 19, 15);
-    int rs2 = get_insn_field(insn, 24, 20);
-    int funct7 = get_insn_field(insn, 31, 25);
-    const char* insn_a = assembly_get(as, PC);
-    printf("instruction = %s\n", insn_a);
-    //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = 0x%x\nrs2 = 0x%x\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
+    while (looping < 20) {
 
-    if(opcode = ECALL){
-        if(ecall(x) == -1){
-            return 0;
-        }
-    }else{
-        // terminate the loop and fetch next instruction
-    }
+        // fetch instruction
+        int insn = memory_rd_w(mem, PC);
+        int opcode = get_insn_field(insn, 6, 0);
+        int rd = get_insn_field(insn, 11, 7);
+        int funct3 = get_insn_field(insn, 14, 12);
+        int rs1 = get_insn_field(insn, 19, 15);
+        int rs2 = get_insn_field(insn, 24, 20);
+        int funct7 = get_insn_field(insn, 31, 25);
+        const char* insn_a = assembly_get(as, PC);
+        printf("instruction = %s\n", insn_a);
+        //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = 0x%x\nrs2 = 0x%x\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
 
-    int Branch = 0;
-    int MemRead = 0;
-    int MemToReg = 0;
-    int ALUOp0 = 0;
-    int ALUOp1 = 0;
-    int MemWrite = 0;
-    int ALUSrc = 0;
-    int RegWrite = 0;
-
-    // decode instruction, set signals
-    set_signals(opcode, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite);
-
-    // generate immediate
-    int ImmGen = get_imm_gen(insn, opcode);
-
-    // get ALU action depending on control signals and instruction
-    int ALU_action = ALU_control(opcode, ALUOp0, ALUOp1, funct7, funct3);
-    
-    // execute ALU
-    int ALU_result;
-    if (ALUSrc) {
-        ALU_result = ALU_execute(rs1, ImmGen, ALU_action);
-    }
-    else {
-        ALU_result = ALU_execute(rs1, rs2, ALU_action);
-    }
-
-    // data memory
-    int address = ALU_result;
-    int write_data;
-
-    // if MemToReg is set write_data is read from memory
-    if (MemToReg) {
-        write_data = memory_rd_w(mem, address);
-        printf("write data = %i\n", write_data);
-    }
-    else { // if MemToReg is not set write_data is ALU result
-        write_data = ALU_result;
-        printf("write data = %i\n", write_data);
-    }
-
-    // if memwrite is set write result to memory
-    if (MemWrite) {
-        memory_wr_w(mem, address, write_data);
-    }
-
-    // if RegWrite is set write result to register
-    if (RegWrite) {
-        x[rd] = write_data;
-        printf("x[%i] = %i", rd, write_data);
-    }
-
-    // update PC depending on branch and ALU result
-    if (Branch == 1 && ALU_result == 0) {
-        PC += ImmGen;
-    }
-    else {
         PC += 4;
+
+        if(opcode == ECALL){
+            if(ecall(x) == -1){
+                return 0;
+            }
+        }else{
+            //continue;
+        }
+
+        int Branch = 0;
+        int MemRead = 0;
+        int MemToReg = 0;
+        int ALUOp0 = 0;
+        int ALUOp1 = 0;
+        int MemWrite = 0;
+        int ALUSrc = 0;
+        int RegWrite = 0;
+
+        // decode instruction, set signals
+        set_signals(opcode, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite);
+
+        // generate immediate
+        int ImmGen = get_imm_gen(insn, opcode);
+
+        // get ALU action depending on control signals and instruction
+        int ALU_action = ALU_control(opcode, ALUOp0, ALUOp1, funct7, funct3);
+
+        // execute ALU
+        int ALU_result;
+        if (ALUSrc) {
+            ALU_result = ALU_execute(rs1, ImmGen, ALU_action);
+        }
+        else {
+            ALU_result = ALU_execute(rs1, rs2, ALU_action);
+        }
+
+        // data memory
+        int address = ALU_result;
+        int write_data;
+
+        // if MemToReg is set write_data is read from memory
+        if (MemToReg) {
+            write_data = memory_rd_w(mem, address);
+            printf("write data = %i\n", write_data);
+        }
+        else { // if MemToReg is not set write_data is ALU result
+            write_data = ALU_result;
+            printf("write data = %i\n", write_data);
+        }
+
+        // if memwrite is set write result to memory
+        if (MemWrite) {
+            memory_wr_w(mem, address, write_data);
+        }
+
+        // if RegWrite is set write result to register
+        if (RegWrite) {
+            x[rd] = write_data;
+            if (rd == 0) {
+                x[rd] = 0;
+            }
+            printf("x[%i] = %i\n", rd, write_data);
+        }
+        printf("\n");
+        // update PC depending on branch and ALU result
+        if (Branch == 1 && ALU_result == 0) {
+            PC = ImmGen;
+        }
+        looping++;
     }
-    
     return 0;
 }
