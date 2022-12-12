@@ -60,9 +60,11 @@ int get_insn_field(int insn, int end, int start) {
     return mask & (insn >> start);
 }
 
-int sign_extend(int num) {
-    int sign = ((num & 0x1FFFFF) | (num & 0x100000) ? 0xFFE00000 : 0);
-
+int sign_extend(int num, int len_bits) {
+    int mask = power(2, len_bits+1)-1;
+    int mask2 = power(2, len_bits);
+    int rest = 0xFFFFFFFF-mask;
+    int sign = ((num & mask) | (num & mask2) ? rest : 0);
     return (sign | num);
 }
 
@@ -137,7 +139,7 @@ int get_imm_gen(int insn, int opcode){
 
         case JAL:
             imm = (get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12);
-            return sign_extend(imm);
+            return sign_extend(imm, 20);
 
         case JALR:
             return get_insn_field(insn, 31, 20);
