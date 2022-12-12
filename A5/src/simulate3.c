@@ -38,16 +38,24 @@ int power(int base, int exponent) {
     }
     return product;
 }
-
 int ecall(int* registers){
-    if(registers[7] == 1){
+    int syscall = registers[7];
+    switch (syscall)
+    {
+    case 1:
         *(registers + 7) = getchar();
-    } else if(registers[7] == 2){
+        return 0;
+    case 2:
         putchar(*(registers + 6));
-    } else if(registers[7] == 3 || 93){
+        return 0;
+    case 3:
         return -1;
+    case 93:
+        return -1;
+    default:
+        printf("Invalid SYSCALL.");
+        return 1;
     }
-    return 0;
 }
 
 // returns instruction field from end bit to start bit including both end and start
@@ -352,6 +360,8 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         if(ecall(x) == -1){
             return 0;
         }
+    }else{
+        // terminate the loop and fetch next instruction
     }
 
     int Branch = 0;
