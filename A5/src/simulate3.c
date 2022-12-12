@@ -20,7 +20,13 @@ enum ALU_action {
     ALU_SRA = 9,
     ALU_MUL = 10,
     ALU_DIV = 11,
-    ALU_REM = 12
+    ALU_REM = 12,
+    BRANCH_BEQ = 13,
+    BRANCH_BNE = 14,
+    BRANCH_BLT = 15,
+    BRANCH_BGE = 16,
+    BRANCH_BLTU = 17,
+    BRANCH_BGEU = 18,
 };
 
 // returns base to the power of exponent
@@ -146,7 +152,7 @@ int get_imm_gen(int insn, int opcode){
 
         default:
             printf("ImmGen error");
-            return 1;
+            return -11;
     }
     return -1;
 }
@@ -166,27 +172,27 @@ int ALU_control(int opcode, int ALUOp1, int ALUOp0, int funct7, int funct3){
         if (opcode == B) { // if branch check funct3
             switch (funct3) {
                 case 0x0:
-                    // beq
+                    return BRANCH_BEQ;
                     break;
 
                 case 0x1:
-                    // bne
+                    return BRANCH_BNE;
                     break;
 
                 case 0x4:
-                    // blt
+                    return BRANCH_BLT;
                     break;
 
                 case 0x5:
-                    // bge
+                    return BRANCH_BGE;
                     break;
 
                 case 0x6:
-                    // bltu
+                    return BRANCH_BLTU;
                     break;
 
                 case 0x7:
-                    // bgeu
+                    return BRANCH_BGEU;
                     break;
             }
         }
@@ -302,6 +308,24 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
         
         case ALU_REM:
             return input1 % input2;
+
+        case BRANCH_BEQ:
+            return input1 - input2;
+        
+        case BRANCH_BNE:
+            return !(input1 - input2);
+
+        case BRANCH_BLT:
+            return !(input1 < input2);
+
+        case BRANCH_BGE:
+            return !(input1 >= input2);
+
+        case BRANCH_BLTU:
+            return !((unsigned int) input1 < (unsigned int) input2);
+
+        case BRANCH_BGEU:
+            return !((unsigned int) input1 >= (unsigned int) input2);
 
         default:
             break;
