@@ -33,6 +33,17 @@ int power(int base, int exponent) {
     return product;
 }
 
+int ecall(int* registers){
+    if(registers[7] == 1){
+        *(registers + 7) = getchar();
+    } else if(registers[7] == 2){
+        putchar(*(registers + 6));
+    } else if(registers[7] == 3 || 93){
+        return -1;
+    }
+    return 0;
+}
+
 // returns instruction field from end bit to start bit including both end and start
 // example: call to get_ins_field(ins, 6, 0) will get opcode
 int get_insn_field(int insn, int end, int start) {
@@ -275,13 +286,9 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
             return input1 < input2 ? 1 : 0;
         
         case ALU_SRL:
-            return input1 >> input2;
+            return (unsigned int)input1 >> input2;
 
         case ALU_SRA:
-            // check if negative -> extend 1
-            if (input2 < 0) {
-                
-            }
             return input1 >> input2;
 
         case ALU_SLTU:
@@ -316,6 +323,12 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     const char* insn_a = assembly_get(as, PC);
     printf("instruction = %s\n", insn_a);
     //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = 0x%x\nrs2 = 0x%x\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
+
+    if(opcode = ECALL){
+        if(ecall(x) == -1){
+            return 0;
+        }
+    }
 
     int Branch = 0;
     int MemRead = 0;
