@@ -40,22 +40,15 @@ int power(int base, int exponent) {
 }
 int ecall(int* registers){
     int syscall = registers[7];
-    switch (syscall)
-    {
-    case 1:
-        *(registers + 7) = getchar();
-        return 0;
-    case 2:
-        putchar(*(registers + 6));
-        return 0;
-    case 3:
+    if(syscall == (3 || 93)){
         return -1;
-    case 93:
-        return -1;
-    default:
-        printf("Invalid SYSCALL.");
-        return 1;
     }
+    else if(syscall == 1){
+        *(registers + 7) = getchar();
+    } else if(syscall == 2){
+        putchar(*(registers + 6));
+    }
+    return 0;
 }
 
 // returns instruction field from end bit to start bit including both end and start
