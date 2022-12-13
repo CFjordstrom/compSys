@@ -367,12 +367,12 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
 
         case ALU_ADD:
             printf("adding input1: %d and input 2: %d\n", input1, input2);
-            printf("ALU_result expected: %d\n", input1 + input2);
+            printf("ALU_result expected = %d\n", input1 + input2);
             return input1 + input2;
 
         case ALU_SUB:
             printf("subbing input1: %d and input 2: %d\n", input1, input2);
-            printf("ALU_result expected: %d\n", input1 - input2);
+            printf("ALU_result expected = %d\n", input1 - input2);
             return input1 - input2;
 
         case ALU_OR:
@@ -436,7 +436,8 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
     int looping = 0;
     int PC = start_addr;
     while (looping < 20) {
-        printf("PC = 0x%x\n", PC);
+
+        printf("Line %d.\nPC = 0x%x\n", looping, PC);
         // fetch instruction
         int insn = memory_rd_w(mem, PC);
         int opcode = get_insn_field(insn, 6, 0);
@@ -446,7 +447,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int rs2 = get_insn_field(insn, 24, 20);
         int funct7 = get_insn_field(insn, 31, 25);
         const char* insn_a = assembly_get(as, PC);
-        printf("instruction = %s\n", insn_a);
+        printf("Instruction: %s\n", insn_a);
         //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = %i\nrs2 = %i\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
 
         if(opcode == ECALL){
@@ -490,43 +491,42 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         else {
             ALU_result = ALU_execute(x[rs1], x[rs2], ALU_action);
         }
+        printf("ALU_result actual = %d\n", ALU_result);
 
         // data memory
         int address = ALU_result;
-        printf("ALU_result actual = %d\n", ALU_result);
-        printf("addr: 0x%x\n", address);
-        printf("pre-write x[%d]: %d\n", rd, x[rd]);
         int write_data;
 
         // if MemToReg is set write_data is read from memory
         if (MemToReg) {
+            printf("Loading mem to register x[%d] = %d\n", rd, x[rd]);
             switch (s)
             {
             case byte:
                 write_data = memory_rd_b(mem, address);
-                printf("(wrote byte) write data = %i\n", write_data);
+                printf("(wrote byte) %i at addr: 0x%x\n", write_data, address);
                 break;
             case halfword:
                 write_data = memory_rd_h(mem, address);
-                printf("(wrote halfword) write data = %i\n", write_data);
+                printf("(wrote halfword) %i at addr: 0x%x\n", write_data, address);
                 break;
             case word:
                 write_data = memory_rd_w(mem, address);
-                printf("(wrote word) write data = %i\n", write_data);
+                printf("(wrote word) %i at addr: 0x%x\n", write_data, address);
                 break;
             case ubyte:
                 write_data = (unsigned int) memory_rd_b(mem, address);
-                printf("(wrote ubyte) write data = %i\n", write_data);
+                printf("(wrote ubyte) %i at addr: 0x%x\n", write_data, address);
                 break;
             case uhalfword:
                 write_data = (unsigned int) memory_rd_h(mem, address);
-                printf("(wrote ubyte) write data = %i\n", write_data);
+                printf("(wrote ubyte) %i at addr: 0x%x\n", write_data, address);
                 break;
             }
         }
         else { // if MemToReg is not set write_data is ALU result
             write_data = ALU_result;
-            printf("write data = %i\n", write_data);
+            printf("Write data = %i\n", write_data);
         }
 
         // if memwrite is set write result to memory
@@ -551,7 +551,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             if (rd == 0) {
                 x[rd] = 0;
             }
-            printf("post-write x[%i] = %d\n", rd, write_data);
+            printf("Wrote to x[%i] = %d\n", rd, write_data);
         }
         printf("\n");
         
