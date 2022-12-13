@@ -6,6 +6,8 @@
 // create registers as struct or array of 32 ints
 int x[32];
 
+enum bitsize{byte, halfword, word};
+
 // defines the ALU control signal that is output to the ALU
 enum ALU_action {
     ALU_ADD = 0,
@@ -69,7 +71,7 @@ int sign_extend(int num, int len_bits) {
 }
 
 // ALUOp 00 = add, ALUOp 01 = sub, ALUOp 10 = funct
-void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUOp0, int* ALUOp1, int* MemWrite, int* ALUSrc, int* RegWrite) {
+void set_signals(int opcode, int funct3, int* Branch, int* MemRead, int* MemToReg, int* ALUOp0, int* ALUOp1, int* MemWrite, int* ALUSrc, int* RegWrite, enum bitsize* size) {
     switch(opcode) {
         case LUI:
             *RegWrite = 1;
@@ -97,6 +99,18 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
             break;
 
         case L:
+            switch (funct3)
+            {
+            case 0x0:
+                *size = byte;
+                break;
+            case 0x1:
+                *size = halfword;
+                break;
+            case 0x2:
+                *size = word;
+                break;
+            }
             *MemRead = 1;
             *ALUSrc = 1;
             *MemToReg = 1;
@@ -104,6 +118,18 @@ void set_signals(int opcode, int* Branch, int* MemRead, int* MemToReg, int* ALUO
             break;
 
         case S:
+            switch (funct3)
+            {
+            case 0x0:
+                *size = byte;
+                break;
+            case 0x1:
+                *size = halfword;
+                break;
+            case 0x2:
+                *size = word;
+                break;
+            }
             *ALUSrc = 1;
             *MemWrite = 1;
             break;
@@ -163,7 +189,7 @@ int get_imm_gen(int insn, int opcode){
     return -1;
 }
 
-// gets the output of the ALU control based on the ALUOp and the funct3 and funct7 fields
+// gets the output of the ALU control based on the ALUOp and the funct3 and funct7 fields, also get addressing size (byte, halfword, word)
 int ALU_control(int opcode, int ALUOp1, int ALUOp0, int funct7, int funct3){
     int bit25 = get_insn_field(funct7, 0, 0);
     int bit30 = get_insn_field(funct7, 5, 5);
@@ -372,9 +398,10 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         int MemWrite = 0;
         int ALUSrc = 0;
         int RegWrite = 0;
+        enum bitsize s = word;
 
         // decode instruction, set signals
-        set_signals(opcode, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite);
+        set_signals(opcode, funct3, &Branch, &MemRead, &MemToReg, &ALUOp0, &ALUOp1, &MemWrite, &ALUSrc, &RegWrite, &s);
 
         // generate immediate
         int ImmGen = get_imm_gen(insn, opcode);
