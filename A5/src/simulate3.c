@@ -432,8 +432,21 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         // if MemToReg is set write_data is read from memory
         // TODO add support for byte, halfword etc.
         if (MemToReg) {
-            write_data = memory_rd_w(mem, address);
-            printf("write data = %i\n", write_data);
+            switch (s)
+            {
+            case byte:
+                write_data = memory_rd_b(mem, address);
+                printf("(wrote byte) write data = %i\n", write_data);
+                break;
+            case halfword:
+                write_data = memory_rd_h(mem, address);
+                printf("(wrote halfword) write data = %i\n", write_data);
+                break;
+            case word:
+                write_data = memory_rd_w(mem, address);
+                printf("(wrote word) write data = %i\n", write_data);
+                break; 
+            }
         }
         else { // if MemToReg is not set write_data is ALU result
             write_data = ALU_result;
@@ -443,7 +456,18 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         // if memwrite is set write result to memory
         // TODO add support for byte, halfword etc.
         if (MemWrite) {
-            memory_wr_w(mem, address, write_data);
+            switch (s)
+            {
+            case byte:
+                memory_wr_b(mem, address, write_data);
+                break;
+            case halfword:
+                memory_wr_h(mem, address, write_data);
+                break;
+            case word:
+                memory_wr_w(mem, address, write_data);
+                break; 
+            }
         }
 
         // if RegWrite is set write result to register
