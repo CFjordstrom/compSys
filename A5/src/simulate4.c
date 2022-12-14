@@ -43,14 +43,14 @@ int power(int base, int exponent) {
 }
 
 int ecall(int* registers){
-    int syscall = registers[7];
+    int syscall = registers[17];
     if(syscall == (3 || 93)){
         return -1;
     }
     else if(syscall == 1){
-        registers[7] = getchar();
+        registers[17] = getchar();
     } else if(syscall == 2){
-        putchar(registers[6]);
+        putchar(registers[16]);
     }
     return 0;
 }
@@ -171,8 +171,19 @@ int get_imm_gen(int insn, int opcode){
             return get_insn_field(insn, 31, 12);
 
         case JAL:
-            imm = (get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12);
-            return sign_extend(imm, 20);
+            unsigned int imm2 = 0;
+            unsigned int imm_0 = 0;
+            unsigned int imm_10_to_1 = (insn & 0b01111111111000000000000000000000) >> 20;
+            unsigned int imm_11 = (insn & 0b00000000000100000000000000000000) >> 9;
+            unsigned int imm_19_to_12 = (insn & 0b00000000000011111111000000000000);
+            unsigned int imm_20 = (insn & 0x80000000) >> 11;
+            imm2 = imm_20 | imm_19_to_12 | imm_11 | imm_10_to_1 | imm_0;
+            if ((imm2 >> 20) != 0){
+                imm2 = imm2 | 0xfff00000; // add sign extension
+            }
+            return imm2;
+            //imm = (get_insn_field(insn, 31, 31) << 20) | (get_insn_field(insn, 30, 21) << 1) | (get_insn_field(insn, 20, 20) << 11) | (get_insn_field(insn, 19, 12) << 12);
+            //return sign_extend(imm, 20);
 
         case JALR:
             return get_insn_field(insn, 31, 20);
@@ -435,7 +446,7 @@ int ALU_execute(int input1, int input2, enum ALU_action ALU_action){
 long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE *log_file) {
     int looping = 0;
     int PC = start_addr;
-    while (looping < 20) {
+    while (looping < 50) {
 
         printf("Line %d.\nPC = 0x%x\n", looping, PC);
         // fetch instruction
@@ -451,11 +462,14 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
         //printf("PC = 0x%x\ninsn = 0x%x\nopcode = 0x%x\nrd = 0x%x\nfunct3 = 0x%x\nrs1 = %i\nrs2 = %i\nfunct7 = 0x%x\n", PC, insn, opcode, rd, funct3, rs1, rs2, funct7);
 
         if(opcode == ECALL){
-            if(ecall(x) == -1){
+            printf("ECALL made with x[17] = %d\n", x[17]);
+            looping++;
+            if(ecall(&x) == -1){
                 return 0;
+            }else{
+                PC += 4;
+                continue;
             }
-        }else{
-            //continue;
         }
 
         int Branch = 0;
@@ -489,6 +503,7 @@ long int simulate(struct memory *mem, struct assembly *as, int start_addr, FILE 
             }
         }
         else {
+            printf("Performing ALU_execute on: x[%d] and x[%d]\n", rs1, rs2);
             ALU_result = ALU_execute(x[rs1], x[rs2], ALU_action);
         }
         printf("ALU_result actual = %d\n", ALU_result);
